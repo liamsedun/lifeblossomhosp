@@ -37,6 +37,7 @@ $$ LANGUAGE SQL STABLE SECURITY DEFINER;
 -- 4. Patient-level RLS policies
 
 -- PATIENTS: patient sees own, staff sees all in org
+DROP POLICY IF EXISTS patient_self ON patients;
 CREATE POLICY patient_self ON patients
   USING (
     org_id = public.current_user_org_id()
@@ -47,6 +48,7 @@ CREATE POLICY patient_self ON patients
   );
 
 -- APPOINTMENTS: patient sees own, doctor sees assigned, staff sees all
+DROP POLICY IF EXISTS appointment_patient_self ON appointments;
 CREATE POLICY appointment_patient_self ON appointments
   USING (
     EXISTS (
@@ -61,6 +63,7 @@ CREATE POLICY appointment_patient_self ON appointments
   );
 
 -- INVOICES: patient sees own, staff sees all
+DROP POLICY IF EXISTS inv_patient_self ON invoices;
 CREATE POLICY inv_patient_self ON invoices
   USING (
     EXISTS (
@@ -75,6 +78,7 @@ CREATE POLICY inv_patient_self ON invoices
   );
 
 -- INVOICE ITEMS: inherit from invoice
+DROP POLICY IF EXISTS inv_items_patient_self ON invoice_items;
 CREATE POLICY inv_items_patient_self ON invoice_items
   USING (
     EXISTS (
@@ -90,6 +94,7 @@ CREATE POLICY inv_items_patient_self ON invoice_items
   );
 
 -- PAYMENTS: patient sees own, staff sees all
+DROP POLICY IF EXISTS pay_patient_self ON payments;
 CREATE POLICY pay_patient_self ON payments
   USING (
     EXISTS (
@@ -104,6 +109,7 @@ CREATE POLICY pay_patient_self ON payments
   );
 
 -- MEDICAL RECORDS: patient sees own (non-confidential), staff sees all
+DROP POLICY IF EXISTS medrec_patient_self ON medical_records;
 CREATE POLICY medrec_patient_self ON medical_records
   USING (
     (
@@ -122,6 +128,7 @@ CREATE POLICY medrec_patient_self ON medical_records
 
 -- 5. Users table: patient sees own, staff sees all in org
 DROP POLICY IF EXISTS org_isolation ON users;
+DROP POLICY IF EXISTS user_self_or_staff ON users;
 CREATE POLICY user_self_or_staff ON users
   USING (
     id = auth.uid()
