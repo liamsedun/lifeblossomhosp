@@ -1,121 +1,225 @@
 "use client";
 
+import { useMemo, useCallback } from "react";
 import {
-  TrendingUp,
-  Calendar,
-  Users,
-  Clock,
-  Download,
-  MoreHorizontal,
-  DollarSign,
-  Activity,
+  TrendingUp, Calendar, Users, Clock, Download, DollarSign, Activity, Printer,
 } from "lucide-react";
 import {
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
+  LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import { cn, formatCurrency } from "@/lib/utils";
+import { useAppointments } from "@/hooks/use-appointments";
+import { usePatients } from "@/hooks/use-patients";
+import { useInvoices } from "@/hooks/use-billing";
+import { useStaff } from "@/hooks/use-staff";
+import { Loader2 } from "lucide-react";
+import type { Invoice, Appointment } from "@/lib/api-types";
 
-const revenueTrend = [
-  { month: "Aug", amount: 3800000 },
-  { month: "Sep", amount: 4200000 },
-  { month: "Oct", amount: 3950000 },
-  { month: "Nov", amount: 4500000 },
-  { month: "Dec", amount: 5100000 },
-  { month: "Jan", amount: 4800000 },
-  { month: "Feb", amount: 5300000 },
-  { month: "Mar", amount: 4950000 },
-  { month: "Apr", amount: 5200000 },
-  { month: "May", amount: 5600000 },
-  { month: "Jun", amount: 5400000 },
-  { month: "Jul", amount: 5800000 },
-];
+const CHART_COLORS = ["#e0a84a", "#16A34A", "#0891B2", "#F39C12", "#E74C3C", "#8B5CF6", "#6366F1", "#EC4898"];
 
-const deptPieData = [
-  { name: "Cardiology", value: 280, color: "#0F4C81" },
-  { name: "General", value: 320, color: "#16A34A" },
-  { name: "Pediatrics", value: 190, color: "#0891B2" },
-  { name: "Orthopedics", value: 140, color: "#F39C12" },
-  { name: "Neurology", value: 110, color: "#E74C3C" },
-  { name: "Maternity", value: 160, color: "#8B5CF6" },
-];
+function escapeCsv(val: string | number): string {
+  const s = String(val);
+  return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
+}
 
-const recentActivity = [
-  { action: "New patient registered", detail: "Amara Okafor — LB-042", time: "2 min ago", type: "patient" },
-  { action: "Appointment completed", detail: "Chidi Eze with Dr. Okonkwo", time: "15 min ago", type: "apt" },
-  { action: "Payment received", detail: "₦85,000 — INV-001", time: "1 hr ago", type: "payment" },
-  { action: "Invoice overdue", detail: "INV-003 — ₦45,000", time: "2 hrs ago", type: "alert" },
-  { action: "Staff shift change", detail: "Nurse Esther — On Leave", time: "3 hrs ago", type: "staff" },
-  { action: "Lab results uploaded", detail: "Emeka Nwosu — X-Ray", time: "5 hrs ago", type: "lab" },
-];
-
-const kpis = [
-  { label: "Total Revenue", value: "₦58.4M", trend: "+12.3%", up: true, icon: DollarSign, color: "text-accent", bg: "bg-accent-light" },
-  { label: "Appointments (Month)", value: "1,204", trend: "+8.1%", up: true, icon: Calendar, color: "text-primary", bg: "bg-primary-lighter" },
-  { label: "New Patients", value: "186", trend: "+15.2%", up: true, icon: Users, color: "text-secondary", bg: "bg-secondary-light" },
-  { label: "Avg Wait Time", value: "14 min", trend: "-3 min", up: true, icon: Clock, color: "text-warning", bg: "bg-warning-light" },
-];
-
-const typeIcons: Record<string, React.ElementType> = {
-  patient: Users,
-  apt: Calendar,
-  payment: DollarSign,
-  alert: Activity,
-  staff: Users,
-  lab: Activity,
-};
+function downloadCsv(filename: string, rows: string[][]) {
+  const bom = "\uFEFF";
+  const csv = bom + rows.map((r) => r.map(escapeCsv).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 export default function ReportsPage() {
+  const { data: appointments, loading: aptLoading } = useAppointments();
+  const { data: patients, loading: patLoading } = usePatients();
+  const { data: invoices, loading: invLoading } = useInvoices();
+  const { data: staff, loading: staffLoading } = useStaff();
+  const loading = aptLoading || patLoading || invLoading || staffLoading;
+
+  const kpis = useMemo(() => {
+    const totalRevenue = (invoices || []).filter((i) => i.status === "paid" || i.status === "partially_paid")
+      .reduce((sum, i) => sum + i.total_amount, 0);
+
+    const prevMonthRev = (invoices || []).filter((i) => {
+      const d = new Date(i.issue_date);
+      const now = new Date();
+      return d >= new Date(now.getFullYear(), now.getMonth() - 1, 1) && d < new Date(now.getFullYear(), now.getMonth(), 1);
+    }).reduce((sum, i) => sum + (i.status === "paid" || i.status === "partially_paid" ? i.total_amount : 0), 0);
+
+    const thisMonthRev = (invoices || []).filter((i) => {
+      const d = new Date(i.issue_date);
+      const now = new Date();
+      return d >= new Date(now.getFullYear(), now.getMonth(), 1);
+    }).reduce((sum, i) => sum + (i.status === "paid" || i.status === "partially_paid" ? i.total_amount : 0), 0);
+
+    const monthApts = (appointments || []).filter((a) => {
+      const d = new Date(a.appointment_date);
+      const now = new Date();
+      return d >= new Date(now.getFullYear(), now.getMonth(), 1);
+    }).length;
+
+    const newPatientsThisMonth = (patients || []).filter((p) => {
+      const d = new Date(p.created_at);
+      const now = new Date();
+      return d >= new Date(now.getFullYear(), now.getMonth(), 1);
+    }).length;
+
+    const revTrend = prevMonthRev > 0 ? ((thisMonthRev - prevMonthRev) / prevMonthRev * 100).toFixed(1) : "0";
+
+    return {
+      totalRevenue: formatCurrency(totalRevenue),
+      revenueTrend: `${thisMonthRev >= prevMonthRev ? "+" : ""}${revTrend}%`,
+      revenueUp: thisMonthRev >= prevMonthRev,
+      monthAppointments: monthApts,
+      newPatients: newPatientsThisMonth,
+    };
+  }, [invoices, appointments, patients]);
+
+  const revenueTrendData = useMemo(() => {
+    if (!invoices || invoices.length === 0) return [];
+    const byMonth: Record<string, number> = {};
+    const now = new Date();
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = d.toLocaleString("default", { month: "short", year: "2-digit" });
+      byMonth[key] = 0;
+    }
+    (invoices || []).filter((i) => i.status === "paid" || i.status === "partially_paid").forEach((i) => {
+      const d = new Date(i.issue_date);
+      const key = d.toLocaleString("default", { month: "short", year: "2-digit" });
+      if (byMonth[key] !== undefined) byMonth[key] += i.total_amount;
+    });
+    return Object.entries(byMonth).map(([month, amount]) => ({ month, amount }));
+  }, [invoices]);
+
+  const deptPieData = useMemo(() => {
+    if (!appointments) return [];
+    const counts: Record<string, number> = {};
+    appointments.forEach((a) => {
+      const dept = a.staff?.department || "General";
+      counts[dept] = (counts[dept] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, value], i) => ({ name, value, color: CHART_COLORS[i % CHART_COLORS.length] }));
+  }, [appointments]);
+
+  const recentActivity = useMemo(() => {
+    const items: { action: string; detail: string; time: string; }[] = [];
+    if (patients && patients.length > 0) {
+      const last = patients[0];
+      const name = last.user ? `${last.user.first_name} ${last.user.last_name}` : "New patient";
+      items.push({ action: "New patient registered", detail: `${name} — ${last.patient_number}`, time: "Recently" });
+    }
+    if (appointments && appointments.length > 0) {
+      const last = appointments[0];
+      const name = last.patient?.user ? `${last.patient.user.first_name} ${last.patient.user.last_name}` : "Patient";
+      items.push({ action: "Appointment completed", detail: `${name} with ${last.staff?.user?.first_name || "staff"}`, time: "Recently" });
+    }
+    if (invoices && invoices.length > 0) {
+      const paid = invoices.find((i) => i.status === "paid");
+      if (paid) {
+        items.push({ action: "Payment received", detail: `${formatCurrency(paid.total_amount)} — ${paid.invoice_number}`, time: "Recently" });
+      }
+    }
+    items.push({
+      action: "System active", detail: `${staff?.length || 0} staff, ${patients?.length || 0} patients, ${appointments?.length || 0} appointments`,
+      time: "Live",
+    });
+    return items;
+  }, [patients, appointments, invoices, staff]);
+
+  const exportCsv = useCallback(() => {
+    const rows: string[][] = [
+      ["Life Blossom Hospital — Performance Report"],
+      ["Generated", new Date().toLocaleString()],
+      [""],
+      ["Metric", "Value"],
+      ["Total Revenue", kpis.totalRevenue],
+      ["Revenue Trend", kpis.revenueTrend],
+      ["Monthly Appointments", String(kpis.monthAppointments)],
+      ["New Patients (Month)", String(kpis.newPatients)],
+      ["Total Staff", String(staff?.length || 0)],
+      ["Total Patients", String(patients?.length || 0)],
+      ["Total Appointments", String(appointments?.length || 0)],
+      [""],
+      ["Month", "Revenue"],
+      ...revenueTrendData.map((d) => [d.month, String(d.amount)]),
+      [""],
+      ["Department", "Appointments"],
+      ...deptPieData.map((d) => [d.name, String(d.value)]),
+      [""],
+      ["Recent Activity", "Detail", "Time"],
+      ...recentActivity.map((a) => [a.action, a.detail, a.time]),
+    ];
+    downloadCsv(`hospital-report-${new Date().toISOString().split("T")[0]}.csv`, rows);
+  }, [kpis, revenueTrendData, deptPieData, recentActivity, staff, patients, appointments]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <Loader2 className="size-8 animate-spin text-[#e0a84a]" />
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-5 print:p-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Reports</h1>
-          <p className="text-sm text-text-secondary mt-1">
-            Hospital performance analytics and insights
-          </p>
+          <h1 className="text-2xl font-bold text-white">Reports</h1>
+          <p className="text-sm text-white/50 mt-1">Hospital performance analytics and insights</p>
         </div>
-        <Button>
-          <Download className="size-4" />
-          Export Report
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button className="bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] font-semibold border-0 shadow-lg shadow-[#e0a84a]/20">
+              <Download className="size-4" />Export Report
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44 border-white/[0.06] bg-[#0d1322]/95 backdrop-blur-xl text-white/80">
+            <DropdownMenuItem onClick={exportCsv}
+              className="hover:bg-white/[0.06] hover:text-white">
+              <Download className="size-3.5 mr-2" />Download CSV
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => window.print()}
+              className="hover:bg-white/[0.06] hover:text-white">
+              <Printer className="size-3.5 mr-2" />Print Report
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* KPI cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {kpis.map((kpi) => {
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 print:grid-cols-4">
+        {[
+          { label: "Total Revenue", value: kpis.totalRevenue, trend: kpis.revenueTrend, up: kpis.revenueUp, icon: DollarSign, color: "text-emerald-400", bg: "bg-emerald-500/10" },
+          { label: "Appointments (Month)", value: String(kpis.monthAppointments), trend: `${appointments?.length || 0} total`, up: true, icon: Calendar, color: "text-[#e0a84a]", bg: "bg-[#e0a84a]/10" },
+          { label: "New Patients (Month)", value: String(kpis.newPatients), trend: `${patients?.length || 0} total`, up: true, icon: Users, color: "text-blue-400", bg: "bg-blue-500/10" },
+          { label: "Staff", value: String(staff?.length || 0), trend: `${appointments?.length || 0} total appointments`, up: true, icon: Clock, color: "text-purple-400", bg: "bg-purple-500/10" },
+        ].map((kpi) => {
           const Icon = kpi.icon;
           return (
-            <Card key={kpi.label}>
+            <Card key={kpi.label} className="border-white/[0.06] bg-white/[0.03] backdrop-blur-xl print:border-gray-300 print:bg-white">
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-sm text-text-secondary">{kpi.label}</p>
-                    <p className="text-2xl font-bold text-foreground mt-1">
-                      {kpi.value}
-                    </p>
-                    <p
-                      className={cn(
-                        "mt-1 text-xs font-medium",
-                        kpi.up ? "text-accent" : "text-danger"
-                      )}
-                    >
-                      {kpi.trend}
-                    </p>
+                    <p className="text-sm text-white/50 print:text-gray-600">{kpi.label}</p>
+                    <p className="text-2xl font-bold text-white mt-1 print:text-gray-900">{kpi.value}</p>
+                    <p className={cn("mt-1 text-xs font-medium", kpi.up ? "text-emerald-400 print:text-emerald-600" : "text-rose-400")}>{kpi.trend}</p>
                   </div>
-                  <div className={cn("flex size-10 items-center justify-center rounded-lg", kpi.bg)}>
+                  <div className={cn("flex size-10 items-center justify-center rounded-lg print:hidden", kpi.bg)}>
                     <Icon className={cn("size-5", kpi.color)} />
                   </div>
                 </div>
@@ -126,102 +230,73 @@ export default function ReportsPage() {
       </div>
 
       {/* Charts */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* Revenue trend */}
-        <Card>
+      <div className="grid gap-4 lg:grid-cols-2 print:grid-cols-2">
+        <Card className="border-white/[0.06] bg-white/[0.03] backdrop-blur-xl print:border-gray-300 print:bg-white">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Revenue Trend (12 Months)</CardTitle>
+            <CardTitle className="text-base text-white print:text-gray-900">Revenue Trend (12 Months)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={revenueTrend}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5EAF0" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#6B7A90" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: "#6B7A90" }} axisLine={false} tickLine={false} tickFormatter={(v) => `₦${(v / 1e6).toFixed(1)}M`} />
-                  <Tooltip
-                    contentStyle={{ borderRadius: 8, border: "1px solid #E5EAF0" }}
-                    formatter={(v) => [formatCurrency(Number(v)), "Revenue"]}
-                  />
-                  <Line type="monotone" dataKey="amount" stroke="#0F4C81" strokeWidth={2} dot={{ fill: "#0F4C81", r: 3 }} activeDot={{ r: 5 }} />
-                </LineChart>
-              </ResponsiveContainer>
+            <div className="h-72 print:h-64">
+              {revenueTrendData.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-sm text-white/30">No invoice data yet</div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={revenueTrendData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11, fill: "rgba(255,255,255,0.4)" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: "rgba(255,255,255,0.4)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `₦${(v / 1e6).toFixed(1)}M`} />
+                    <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "#0d1322" }}
+                      formatter={(v) => [formatCurrency(Number(v)), "Revenue"]} labelStyle={{ color: "rgba(255,255,255,0.7)" }} />
+                    <Line type="monotone" dataKey="amount" stroke="#e0a84a" strokeWidth={2} dot={{ fill: "#e0a84a", r: 3 }} activeDot={{ r: 5 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Department pie */}
-        <Card>
+        <Card className="border-white/[0.06] bg-white/[0.03] backdrop-blur-xl print:border-gray-300 print:bg-white">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Appointments by Department</CardTitle>
+            <CardTitle className="text-base text-white print:text-gray-900">Appointments by Department</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={deptPieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
-                    paddingAngle={3}
-                    dataKey="value"
-                  >
-                    {deptPieData.map((entry, i) => (
-                      <Cell key={i} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ borderRadius: 8, border: "1px solid #E5EAF0" }}
-                    formatter={(v) => [v, ""]}
-                  />
-                  <Legend
-                    verticalAlign="bottom"
-                    iconType="circle"
-                    iconSize={8}
-                    formatter={(value: string) => (
-                      <span className="text-xs text-text-secondary">{value}</span>
-                    )}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="h-72 print:h-64">
+              {deptPieData.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-sm text-white/30">No appointment data yet</div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={deptPieData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3} dataKey="value">
+                      {deptPieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                    </Pie>
+                    <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "#0d1322" }}
+                      formatter={(v) => [v, ""]} labelStyle={{ color: "rgba(255,255,255,0.7)" }} />
+                    <Legend verticalAlign="bottom" iconType="circle" iconSize={8}
+                      formatter={(value: string) => <span className="text-xs text-white/50">{value}</span>} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Recent activity */}
-      <Card>
+      <Card className="border-white/[0.06] bg-white/[0.03] backdrop-blur-xl print:border-gray-300 print:bg-white">
         <CardHeader className="pb-2 flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Recent Activity</CardTitle>
-          <Button variant="ghost" size="sm" className="text-xs text-primary">
-            View All
-          </Button>
+          <CardTitle className="text-base text-white print:text-gray-900">Recent Activity</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="divide-y divide-border">
-            {recentActivity.map((act, i) => {
-              const Icon = typeIcons[act.type] || Activity;
-              return (
-                <div key={i} className="flex items-start gap-3 px-5 py-3.5 hover:bg-muted/40 transition-colors">
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted">
-                    <Icon className="size-4 text-text-secondary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground">
-                      {act.action}
-                    </p>
-                    <p className="text-xs text-text-secondary mt-0.5">
-                      {act.detail}
-                    </p>
-                  </div>
-                  <span className="text-xs text-text-secondary shrink-0">
-                    {act.time}
-                  </span>
+          <div className="divide-y divide-white/[0.06] print:divide-gray-200">
+            {recentActivity.map((act, i) => (
+              <div key={i} className="flex items-start gap-3 px-5 py-3.5 hover:bg-white/[0.02] transition-colors">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-white print:text-gray-900">{act.action}</p>
+                  <p className="text-xs text-white/50 mt-0.5 print:text-gray-600">{act.detail}</p>
                 </div>
-              );
-            })}
+                <span className="text-xs text-white/30 shrink-0 print:text-gray-500">{act.time}</span>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>

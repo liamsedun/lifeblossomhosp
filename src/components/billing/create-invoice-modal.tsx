@@ -5,9 +5,7 @@ import { Plus, Trash2, Loader2, Search, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { cn, formatCurrency } from "@/lib/utils";
-import { usePaymentStore } from "@/stores/payment-store";
 import type { Patient } from "@/lib/api-types";
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -54,8 +52,6 @@ export default function CreateInvoiceModal({ open, onClose, onSuccess }: Props) 
   const [taxPercent, setTaxPercent] = useState(0);
   const [discountAmount, setDiscountAmount] = useState(0);
 
-  const recordPayment = usePaymentStore((s) => s.recordPayment);
-
   // ── Patient search ────────────────────────────────────────────
 
   const searchPatients = async (q: string) => {
@@ -66,8 +62,11 @@ export default function CreateInvoiceModal({ open, onClose, onSuccess }: Props) 
       const res = await fetch(`/api/patients?search=${encodeURIComponent(q)}&page_size=10`);
       const json = await res.json();
       setPatients(json.data || []);
-    } catch { setPatients([]); }
-    finally { setSearching(false); }
+    } catch {
+      setPatients([]);
+    } finally {
+      setSearching(false);
+    }
   };
 
   const patientDisplay = (p: Patient) =>
@@ -154,50 +153,55 @@ export default function CreateInvoiceModal({ open, onClose, onSuccess }: Props) 
     onClose();
   };
 
+  const inputClass = "h-8 text-xs bg-white/[0.04] border-white/[0.08] text-white/80 placeholder:text-white/30 focus-visible:border-[#e0a84a]/40 focus-visible:ring-[#e0a84a]/20";
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto border-white/[0.06] bg-[#0d1322]/95 backdrop-blur-xl">
         <DialogHeader>
-          <DialogTitle>Create Invoice</DialogTitle>
-          <DialogDescription>Bill a patient for services rendered.</DialogDescription>
+          <DialogTitle className="text-white">Create Invoice</DialogTitle>
+          <DialogDescription className="text-white/50">Bill a patient for services rendered.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5">
           {/* Patient selector */}
           <div>
-            <label className="block text-xs font-medium text-text-secondary mb-1.5">Patient</label>
+            <label className="block text-xs font-medium text-white/50 mb-1.5">Patient</label>
             {selectedPatient ? (
-              <div className="flex items-center justify-between p-2.5 bg-primary/5 border border-primary/30 rounded-lg">
+              <div className="flex items-center justify-between p-2.5 bg-[#e0a84a]/10 border border-[#e0a84a]/30 rounded-lg">
                 <div>
-                  <p className="text-sm font-medium">{patientDisplay(selectedPatient)}</p>
+                  <p className="text-sm font-medium text-white">{patientDisplay(selectedPatient)}</p>
                   {selectedPatient.insurance_provider && (
-                    <p className="text-xs text-text-secondary">{selectedPatient.insurance_provider} #{selectedPatient.insurance_number}</p>
+                    <p className="text-xs text-white/50">{selectedPatient.insurance_provider} #{selectedPatient.insurance_number}</p>
                   )}
                 </div>
-                <button onClick={() => { setSelectedPatient(null); setPatientQuery(""); }} className="p-1 hover:bg-muted rounded">
+                <button onClick={() => { setSelectedPatient(null); setPatientQuery(""); }}
+                  className="p-1 hover:bg-white/[0.06] rounded text-white/50 hover:text-white transition-colors">
                   <X className="w-4 h-4" />
                 </button>
               </div>
             ) : (
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
                 <Input
                   placeholder="Search patient by name or ID..."
-                  className="pl-9"
+                  className={"pl-9 " + inputClass}
                   value={patientQuery}
                   onChange={(e) => searchPatients(e.target.value)}
                 />
-                {searching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-primary" />}
+                {searching && (
+                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-[#e0a84a]" />
+                )}
                 {patients.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-card border border-border rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                  <div className="absolute z-10 w-full mt-1 rounded-xl border border-white/[0.06] bg-[#0d1322]/95 backdrop-blur-xl shadow-xl max-h-48 overflow-y-auto">
                     {patients.map((p) => (
                       <button
                         key={p.id}
                         onClick={() => { setSelectedPatient(p); setPatients([]); setPatientQuery(""); }}
-                        className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors border-b border-border last:border-0"
+                        className="w-full text-left px-3 py-2.5 text-sm text-white/80 hover:bg-white/[0.04] transition-colors border-b border-white/[0.04] last:border-0"
                       >
-                        <span className="font-medium">{p.user?.first_name} {p.user?.last_name}</span>
-                        <span className="text-text-secondary ml-2 text-xs">{p.patient_number}</span>
+                        <span className="font-medium text-white">{p.user?.first_name} {p.user?.last_name}</span>
+                        <span className="text-white/50 ml-2 text-xs">{p.patient_number}</span>
                       </button>
                     ))}
                   </div>
@@ -209,7 +213,7 @@ export default function CreateInvoiceModal({ open, onClose, onSuccess }: Props) 
           {/* Preset items quick-add */}
           {selectedPatient && (
             <div>
-              <label className="block text-xs font-medium text-text-secondary mb-1.5">Quick Add Services</label>
+              <label className="block text-xs font-medium text-white/50 mb-1.5">Quick Add Services</label>
               <div className="flex flex-wrap gap-1.5">
                 {[
                   { cat: "consultation" as const, label: "Consultation", price: 5000 },
@@ -222,7 +226,7 @@ export default function CreateInvoiceModal({ open, onClose, onSuccess }: Props) 
                   <button
                     key={p.label}
                     onClick={() => addPreset(p.cat, p.label, p.price)}
-                    className="h-7 px-2.5 rounded-md bg-muted text-xs font-medium hover:bg-primary/10 hover:text-primary transition-colors whitespace-nowrap"
+                    className="h-7 px-2.5 rounded-md bg-white/[0.04] text-xs font-medium text-white/70 hover:bg-[#e0a84a]/10 hover:text-[#e0a84a] transition-colors whitespace-nowrap"
                   >
                     + {p.label}
                   </button>
@@ -235,13 +239,14 @@ export default function CreateInvoiceModal({ open, onClose, onSuccess }: Props) 
           {selectedPatient && (
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-medium text-text-secondary">Line Items</label>
-                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={addItem}>
+                <label className="text-xs font-medium text-white/50">Line Items</label>
+                <Button variant="ghost" size="sm" className="h-7 text-xs text-[#e0a84a] hover:text-[#e0a84a]/80 hover:bg-white/[0.06]"
+                  onClick={addItem}>
                   <Plus className="w-3.5 h-3.5 mr-1" />Add Item
                 </Button>
               </div>
               <div className="space-y-2">
-                <div className="hidden sm:grid grid-cols-[1fr_60px_90px_90px_32px] gap-2 px-1 text-[11px] font-medium text-text-secondary">
+                <div className="hidden sm:grid grid-cols-[1fr_60px_90px_90px_32px] gap-2 px-1 text-[11px] font-medium text-white/40">
                   <span>Description</span>
                   <span className="text-center">Qty</span>
                   <span className="text-right">Unit Price</span>
@@ -251,14 +256,14 @@ export default function CreateInvoiceModal({ open, onClose, onSuccess }: Props) 
                   <div key={item.id} className="grid grid-cols-[1fr_60px_90px_90px_32px] gap-2 items-center">
                     <Input
                       placeholder="Item description"
-                      className="h-8 text-xs"
+                      className={inputClass}
                       value={item.description}
                       onChange={(e) => updateItem(item.id, "description", e.target.value)}
                     />
                     <Input
                       type="number"
                       min={1}
-                      className="h-8 text-xs text-center"
+                      className={"h-8 text-xs text-center " + inputClass}
                       value={item.quantity}
                       onChange={(e) => updateItem(item.id, "quantity", Math.max(1, parseInt(e.target.value) || 1))}
                     />
@@ -266,17 +271,17 @@ export default function CreateInvoiceModal({ open, onClose, onSuccess }: Props) 
                       type="number"
                       min={0}
                       step="0.01"
-                      className="h-8 text-xs text-right"
+                      className={"h-8 text-xs text-right " + inputClass}
                       value={item.unit_price || ""}
                       placeholder="0.00"
                       onChange={(e) => updateItem(item.id, "unit_price", parseFloat(e.target.value) || 0)}
                     />
-                    <div className="h-8 flex items-center justify-end text-xs font-semibold text-foreground">
+                    <div className="h-8 flex items-center justify-end text-xs font-semibold text-white">
                       ₦{(item.quantity * item.unit_price).toLocaleString()}
                     </div>
                     <button
                       onClick={() => removeItem(item.id)}
-                      className="h-8 w-8 flex items-center justify-center text-text-secondary hover:text-danger transition-colors"
+                      className="h-8 w-8 flex items-center justify-center text-white/50 hover:text-red-400 transition-colors"
                       disabled={items.length <= 1}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -289,43 +294,43 @@ export default function CreateInvoiceModal({ open, onClose, onSuccess }: Props) 
 
           {/* Totals */}
           {selectedPatient && items.length > 0 && (
-            <div className="border-t border-border pt-3 space-y-1.5 text-sm">
+            <div className="border-t border-white/[0.06] pt-3 space-y-1.5 text-sm">
               <div className="flex justify-between">
-                <span className="text-text-secondary">Subtotal</span>
-                <span>₦{subtotal.toLocaleString()}</span>
+                <span className="text-white/50">Subtotal</span>
+                <span className="text-white">₦{subtotal.toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-text-secondary">Tax (%)</span>
+                <span className="text-white/50">Tax (%)</span>
                 <Input
                   type="number"
                   min={0}
                   max={100}
-                  className="h-7 w-20 text-xs text-right"
+                  className={"h-7 w-20 text-xs text-right " + inputClass}
                   value={taxPercent || ""}
                   placeholder="0"
                   onChange={(e) => setTaxPercent(parseFloat(e.target.value) || 0)}
                 />
               </div>
               {taxAmount > 0 && (
-                <div className="flex justify-between text-text-secondary">
-                  <span>Tax Amount</span>
-                  <span>₦{taxAmount.toLocaleString()}</span>
+                <div className="flex justify-between">
+                  <span className="text-white/50">Tax Amount</span>
+                  <span className="text-white">₦{taxAmount.toLocaleString()}</span>
                 </div>
               )}
               <div className="flex justify-between items-center">
-                <span className="text-text-secondary">Discount (₦)</span>
+                <span className="text-white/50">Discount (₦)</span>
                 <Input
                   type="number"
                   min={0}
-                  className="h-7 w-20 text-xs text-right"
+                  className={"h-7 w-20 text-xs text-right " + inputClass}
                   value={discountAmount || ""}
                   placeholder="0"
                   onChange={(e) => setDiscountAmount(parseFloat(e.target.value) || 0)}
                 />
               </div>
-              <div className="flex justify-between font-bold text-base border-t border-border pt-1.5">
-                <span>Total</span>
-                <span>₦{total.toLocaleString()}</span>
+              <div className="flex justify-between font-bold text-base border-t border-white/[0.06] pt-1.5">
+                <span className="text-white">Total</span>
+                <span className="text-white">₦{total.toLocaleString()}</span>
               </div>
             </div>
           )}
@@ -334,22 +339,29 @@ export default function CreateInvoiceModal({ open, onClose, onSuccess }: Props) 
           {selectedPatient && (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-text-secondary mb-1">Due Date</label>
-                <Input type="date" className="h-8 text-xs" min={today} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+                <label className="block text-xs font-medium text-white/50 mb-1">Due Date</label>
+                <Input type="date" className={"h-8 text-xs " + inputClass} min={today}
+                  value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-text-secondary mb-1">Notes (optional)</label>
-                <Input placeholder="e.g. Follow-up required" className="h-8 text-xs" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                <label className="block text-xs font-medium text-white/50 mb-1">Notes (optional)</label>
+                <Input placeholder="e.g. Follow-up required"
+                  className={"h-8 text-xs " + inputClass}
+                  value={notes} onChange={(e) => setNotes(e.target.value)} />
               </div>
             </div>
           )}
         </div>
 
         <DialogFooter className="mt-4 gap-2">
-          <Button variant="outline" onClick={handleClose} disabled={submitting}>Cancel</Button>
+          <Button variant="outline" onClick={handleClose} disabled={submitting}
+            className="border-white/[0.08] text-white/70 hover:bg-white/[0.06] hover:text-white">
+            Cancel
+          </Button>
           <Button
             onClick={handleSubmit}
             disabled={submitting || !selectedPatient || items.some((i) => !i.description.trim()) || total <= 0}
+            className="bg-[#e0a84a] hover:bg-[#e0a84a]/90 text-[#0a0f1a] font-semibold shadow-lg shadow-[#e0a84a]/20"
           >
             {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
             {submitting ? "Creating..." : `Create Invoice — ${formatCurrency(total)}`}

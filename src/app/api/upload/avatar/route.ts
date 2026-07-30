@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { writeFile } from "fs/promises";
+import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 
 export async function POST(req: NextRequest) {
@@ -19,16 +19,17 @@ export async function POST(req: NextRequest) {
 
     const ext = file.name.split(".").pop() || "png";
     const fileName = `avatar-${authUser.id}-${Date.now()}.${ext}`;
-    const publicDir = path.join(process.cwd(), "public", "uploads", "avatars");
 
-    const { mkdir } = await import("fs/promises");
-    await mkdir(publicDir, { recursive: true });
+    // Save to a private directory outside public/
+    const uploadDir = path.join(process.cwd(), "uploads", "avatars");
+    await mkdir(uploadDir, { recursive: true });
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const filePath = path.join(publicDir, fileName);
+    const filePath = path.join(uploadDir, fileName);
     await writeFile(filePath, buffer);
 
-    const avatarUrl = `/uploads/avatars/${fileName}`;
+    // Store URL pointing to our API serving route
+    const avatarUrl = `/api/uploads/avatars/${fileName}`;
 
     const { error: updateError } = await supabase
       .from("users")

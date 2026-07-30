@@ -8,12 +8,12 @@ import { useAppointmentStore } from "@/stores/appointment-store";
 import type { Appointment } from "@/lib/api-types";
 
 const statusColors: Record<string, string> = {
-  confirmed: "bg-accent-light text-accent",
-  scheduled: "bg-warning-light text-warning",
-  in_progress: "bg-primary-lighter text-primary",
-  completed: "bg-accent-light text-accent",
-  cancelled: "bg-danger-light text-danger",
-  no_show: "bg-danger-light text-danger",
+  confirmed: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  scheduled: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  in_progress: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  completed: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  cancelled: "bg-rose-500/10 text-rose-400 border-rose-500/20",
+  no_show: "bg-rose-500/10 text-rose-400 border-rose-500/20",
 };
 
 const statusLabels: Record<string, string> = {
@@ -24,6 +24,18 @@ const statusLabels: Record<string, string> = {
   cancelled: "Cancelled",
   no_show: "No Show",
 };
+
+function GlassCard({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cn(
+      "relative rounded-2xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-xl p-4 overflow-hidden transition-all duration-300 hover:border-white/[0.12]",
+      className
+    )}>
+      <div className="absolute top-0 right-0 w-32 h-32 translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-[#e0a84a]/[0.04] to-transparent" />
+      {children}
+    </div>
+  );
+}
 
 export default function AppointmentsPage() {
   const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
@@ -118,21 +130,21 @@ export default function AppointmentsPage() {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold text-foreground">Appointments</h2>
-          <span className="text-xs text-text-secondary bg-muted px-2.5 py-1 rounded-full">...</span>
+          <h2 className="text-xl font-bold text-white">Appointments</h2>
+          <span className="text-xs text-white/40 bg-white/[0.04] px-2.5 py-1 rounded-full">...</span>
         </div>
-        <div className="flex bg-muted rounded-lg p-1">
-          <div className="flex-1 h-9 rounded-md bg-card shadow-sm" />
+        <div className="flex bg-white/[0.04] rounded-xl p-1">
+          <div className="flex-1 h-9 rounded-lg bg-white/[0.06]" />
           <div className="flex-1 h-9" />
         </div>
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-card border border-border rounded-xl p-4 card-shadow animate-pulse">
+            <div key={i} className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-4 animate-pulse">
               <div className="flex items-start gap-3">
-                <div className="w-11 h-11 rounded-full bg-muted shrink-0" />
+                <div className="w-11 h-11 rounded-full bg-white/[0.06] shrink-0" />
                 <div className="flex-1 space-y-2">
-                  <div className="h-4 bg-muted rounded w-1/2" />
-                  <div className="h-3 bg-muted rounded w-1/3" />
+                  <div className="h-4 bg-white/[0.06] rounded w-1/2" />
+                  <div className="h-3 bg-white/[0.06] rounded w-1/3" />
                 </div>
               </div>
             </div>
@@ -145,16 +157,16 @@ export default function AppointmentsPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-foreground">Appointments</h2>
-        <span className="text-xs text-text-secondary bg-muted px-2.5 py-1 rounded-full">{appts.length} total</span>
+        <h2 className="text-xl font-bold text-white">Appointments</h2>
+        <span className="text-xs text-white/40 bg-white/[0.04] px-2.5 py-1 rounded-full">{appts.length} total</span>
       </div>
 
-      <div className="flex bg-muted rounded-lg p-1">
+      <div className="flex bg-white/[0.04] rounded-xl p-1 border border-white/[0.06]">
         <button
           onClick={() => setTab("upcoming")}
           className={cn(
-            "flex-1 h-9 text-sm font-medium rounded-md transition-colors",
-            tab === "upcoming" ? "bg-card text-foreground shadow-sm" : "text-text-secondary"
+            "flex-1 h-9 text-sm font-medium rounded-lg transition-all duration-200",
+            tab === "upcoming" ? "bg-white/[0.08] text-white shadow-sm" : "text-white/40 hover:text-white/70"
           )}
         >
           Upcoming
@@ -162,8 +174,8 @@ export default function AppointmentsPage() {
         <button
           onClick={() => setTab("past")}
           className={cn(
-            "flex-1 h-9 text-sm font-medium rounded-md transition-colors",
-            tab === "past" ? "bg-card text-foreground shadow-sm" : "text-text-secondary"
+            "flex-1 h-9 text-sm font-medium rounded-lg transition-all duration-200",
+            tab === "past" ? "bg-white/[0.08] text-white shadow-sm" : "text-white/40 hover:text-white/70"
           )}
         >
           Past
@@ -172,30 +184,27 @@ export default function AppointmentsPage() {
 
       <div className="space-y-3">
         {appts.length > 0 ? appts.map((appt) => (
-          <div
-            key={appt.id}
-            className="bg-card border border-border rounded-xl p-4 card-shadow hover:card-shadow-hover transition-all"
-          >
+          <GlassCard key={appt.id}>
             <div className="flex items-start gap-3">
-              <div className="w-11 h-11 rounded-full bg-primary-lighter flex items-center justify-center text-primary font-bold text-sm shrink-0">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#e0a84a]/20 to-[#e0a84a]/5 flex items-center justify-center text-[#e0a84a] font-bold text-sm shrink-0">
                 {getInitials(appt)}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h4 className="text-sm font-semibold text-foreground">{getDoctorName(appt)}</h4>
-                    <p className="text-xs text-text-secondary">{getSpecialty(appt)}</p>
+                    <h4 className="text-sm font-semibold text-white">{getDoctorName(appt)}</h4>
+                    <p className="text-xs text-white/50">{getSpecialty(appt)}</p>
                   </div>
                   <span
                     className={cn(
-                      "text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0",
-                      statusColors[appt.status] || "bg-muted text-text-secondary"
+                      "text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0",
+                      statusColors[appt.status] || "bg-white/[0.04] text-white/40 border-white/[0.06]"
                     )}
                   >
                     {statusLabels[appt.status] || appt.status}
                   </span>
                 </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-text-secondary">
+                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-white/50">
                   <span className="flex items-center gap-1">
                     <Calendar className="w-3.5 h-3.5" />
                     {new Date(appt.appointment_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
@@ -210,16 +219,16 @@ export default function AppointmentsPage() {
                   </span>
                 </div>
                 {tab === "upcoming" && (
-                  <div className="flex gap-2 mt-3 pt-3 border-t border-border">
+                  <div className="flex gap-2 mt-3 pt-3 border-t border-white/[0.06]">
                     <button
                       onClick={() => openReschedule(appt)}
-                      className="flex-1 h-9 text-xs font-medium border border-border rounded-lg text-foreground hover:bg-muted transition-colors"
+                      className="flex-1 h-9 text-xs font-medium rounded-xl border border-white/[0.08] text-white/70 hover:bg-white/[0.06] transition-all"
                     >
                       Reschedule
                     </button>
                     <button
                       onClick={() => { setCancelAppt(appt); setActionError(""); }}
-                      className="flex-1 h-9 text-xs font-medium border border-danger/30 text-danger rounded-lg hover:bg-danger-light transition-colors"
+                      className="flex-1 h-9 text-xs font-medium rounded-xl border border-rose-500/20 text-rose-400 hover:bg-rose-500/10 transition-all"
                     >
                       Cancel
                     </button>
@@ -227,70 +236,72 @@ export default function AppointmentsPage() {
                 )}
               </div>
             </div>
-          </div>
+          </GlassCard>
         )) : (
-          <div className="bg-card border border-border rounded-xl p-6 card-shadow text-center">
-            <p className="text-sm text-text-secondary">No {tab} appointments found.</p>
-          </div>
+          <GlassCard>
+            <div className="text-center py-6">
+              <p className="text-sm text-white/40">No {tab} appointments found.</p>
+            </div>
+          </GlassCard>
         )}
       </div>
 
       <Link
         href="/patient/book"
-        className="fixed bottom-20 right-4 z-30 w-14 h-14 bg-primary text-white rounded-full flex items-center justify-center shadow-lg hover:bg-primary-dark transition-all hover:scale-105"
+        className="fixed bottom-20 right-4 z-30 w-14 h-14 bg-gradient-to-br from-[#e0a84a] to-amber-500 text-[#0a0f1a] rounded-full flex items-center justify-center shadow-lg shadow-[#e0a84a]/20 hover:shadow-xl hover:shadow-[#e0a84a]/30 transition-all hover:scale-110 active:scale-95"
       >
         <Plus className="w-6 h-6" />
       </Link>
 
-      {/* ===== Reschedule Modal ===== */}
+      {/* Reschedule Modal */}
       {rescheduleAppt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-card border border-border rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-              <h3 className="text-base font-semibold text-foreground">Reschedule Appointment</h3>
-              <button onClick={() => setRescheduleAppt(null)} className="p-1 text-text-secondary hover:text-foreground">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div className="bg-[#0d1322]/95 backdrop-blur-xl border border-white/[0.06] rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+              <h3 className="text-base font-semibold text-white">Reschedule Appointment</h3>
+              <button onClick={() => setRescheduleAppt(null)} className="p-1 text-white/40 hover:text-white transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-5 space-y-4">
-              <p className="text-sm text-text-secondary">
+              <p className="text-sm text-white/60">
                 {getDoctorName(rescheduleAppt)} &middot; {getSpecialty(rescheduleAppt)}
               </p>
               <div>
-                <label className="text-xs font-medium text-text-secondary block mb-1.5">New Date</label>
+                <label className="text-xs font-medium text-white/50 block mb-1.5">New Date</label>
                 <input
                   type="date"
                   value={rescheduleDate}
                   onChange={(e) => setRescheduleDate(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  className="w-full h-10 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[#e0a84a]/30 focus:border-[#e0a84a]/40"
                   required
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-text-secondary block mb-1.5">New Time</label>
+                <label className="text-xs font-medium text-white/50 block mb-1.5">New Time</label>
                 <input
                   type="time"
                   value={rescheduleTime}
                   onChange={(e) => setRescheduleTime(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  className="w-full h-10 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[#e0a84a]/30 focus:border-[#e0a84a]/40"
                   required
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-text-secondary block mb-1.5">Reason (optional)</label>
+                <label className="text-xs font-medium text-white/50 block mb-1.5">Reason (optional)</label>
                 <input
                   type="text"
                   value={rescheduleReason}
                   onChange={(e) => setRescheduleReason(e.target.value)}
                   placeholder="Why are you rescheduling?"
-                  className="w-full h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  className="w-full h-10 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[#e0a84a]/30 focus:border-[#e0a84a]/40"
                 />
               </div>
               {actionError && (
-                <div className="rounded-lg bg-danger-light px-3 py-2 text-sm text-danger">{actionError}</div>
+                <div className="rounded-xl bg-rose-500/10 border border-rose-500/20 px-3 py-2 text-sm text-rose-400">{actionError}</div>
               )}
               {actionSuccess && (
-                <div className="flex items-center gap-2 rounded-lg bg-accent-light px-3 py-2 text-sm text-accent">
+                <div className="flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 text-sm text-emerald-400">
                   <Check className="w-4 h-4" />
                   {actionSuccess}
                 </div>
@@ -298,14 +309,14 @@ export default function AppointmentsPage() {
               <div className="flex gap-3">
                 <button
                   onClick={() => setRescheduleAppt(null)}
-                  className="flex-1 h-11 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors"
+                  className="flex-1 h-11 rounded-xl border border-white/[0.08] text-sm font-medium text-white/70 hover:bg-white/[0.06] transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleReschedule}
                   disabled={rescheduling || !rescheduleDate || !rescheduleTime}
-                  className="flex-1 h-11 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-dark transition-colors disabled:opacity-50"
+                  className="flex-1 h-11 rounded-xl bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] text-sm font-semibold hover:shadow-lg hover:shadow-[#e0a84a]/20 transition-all disabled:opacity-50"
                 >
                   {rescheduling ? "Rescheduling..." : "Confirm"}
                 </button>
@@ -315,33 +326,33 @@ export default function AppointmentsPage() {
         </div>
       )}
 
-      {/* ===== Cancel Confirmation ===== */}
+      {/* Cancel Confirmation */}
       {cancelAppt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-card border border-border rounded-2xl shadow-xl w-full max-w-xs p-6 text-center">
-            <div className="w-12 h-12 rounded-full bg-danger-light flex items-center justify-center mx-auto mb-3">
-              <X className="w-6 h-6 text-danger" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div className="bg-[#0d1322]/95 backdrop-blur-xl border border-white/[0.06] rounded-2xl shadow-2xl w-full max-w-xs p-6 text-center">
+            <div className="w-14 h-14 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mx-auto mb-4">
+              <X className="w-7 h-7 text-rose-400" />
             </div>
-            <h3 className="text-base font-semibold text-foreground mb-1">Cancel Appointment</h3>
-            <p className="text-sm text-text-secondary mb-5">
+            <h3 className="text-base font-semibold text-white mb-1">Cancel Appointment</h3>
+            <p className="text-sm text-white/50 mb-6">
               Cancel your appointment with {getDoctorName(cancelAppt)} on{" "}
               {new Date(cancelAppt.appointment_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
               ?
             </p>
             {actionError && (
-              <div className="rounded-lg bg-danger-light px-3 py-2 text-sm text-danger mb-4">{actionError}</div>
+              <div className="rounded-xl bg-rose-500/10 border border-rose-500/20 px-3 py-2 text-sm text-rose-400 mb-4">{actionError}</div>
             )}
             <div className="flex gap-3">
               <button
                 onClick={() => setCancelAppt(null)}
-                className="flex-1 h-11 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors"
+                className="flex-1 h-11 rounded-xl border border-white/[0.08] text-sm font-medium text-white/70 hover:bg-white/[0.06] transition-colors"
               >
                 Keep
               </button>
               <button
                 onClick={handleCancel}
                 disabled={cancelling}
-                className="flex-1 h-11 rounded-lg bg-danger text-white text-sm font-semibold hover:bg-danger/90 transition-colors disabled:opacity-50"
+                className="flex-1 h-11 rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 text-white text-sm font-semibold hover:shadow-lg hover:shadow-rose-500/20 transition-all disabled:opacity-50"
               >
                 {cancelling ? "Cancelling..." : "Yes, Cancel"}
               </button>

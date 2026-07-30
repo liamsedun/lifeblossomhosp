@@ -50,7 +50,6 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
       .catch(() => {});
   }, []);
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (
@@ -85,13 +84,15 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <header className="sticky top-0 z-40 bg-card border-b border-border px-4 py-3">
+    <div className="min-h-screen bg-gradient-to-br from-[#0a0f1a] via-[#0d1322] to-[#0f1a2e] flex flex-col">
+      <div className="fixed inset-0 bg-[url('/grid.svg')] opacity-[0.03] pointer-events-none" />
+
+      <header className="sticky top-0 z-40 bg-[#0d1322]/80 backdrop-blur-xl border-b border-white/[0.06] px-4 py-3">
         <div className="flex items-center justify-between max-w-lg mx-auto w-full">
           <div>
-            <p className="text-sm text-text-secondary">Hello,</p>
-            <h1 className="text-lg font-semibold text-foreground flex items-center gap-1">
-              {user?.first_name || "Patient"}! <ChevronRight className="w-4 h-4 text-text-secondary" />
+            <p className="text-xs text-white/50">Hello,</p>
+            <h1 className="text-lg font-semibold text-white flex items-center gap-1">
+              {user?.first_name || "Patient"}! <ChevronRight className="w-4 h-4 text-white/30" />
             </h1>
           </div>
           <div className="flex items-center gap-2">
@@ -99,20 +100,20 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
               href="https://wa.me/2349058038476"
               target="_blank"
               rel="noopener noreferrer"
-              className="p-2 rounded-full hover:bg-accent-light/50 transition-colors"
+              className="p-2 rounded-full hover:bg-white/[0.06] transition-all group"
               title="Chat on WhatsApp"
             >
-              <MessageCircle className="w-5 h-5 text-accent" />
+              <MessageCircle className="w-5 h-5 text-emerald-400 group-hover:scale-110 transition-transform" />
             </a>
             <div className="relative">
               <button
                 ref={bellRef}
                 onClick={() => setShowDropdown(!showDropdown)}
-                className="relative p-2 rounded-full hover:bg-muted transition-colors"
+                className="relative p-2 rounded-full hover:bg-white/[0.06] transition-all"
               >
-                <Bell className="w-5 h-5 text-foreground" />
+                <Bell className="w-5 h-5 text-white/70" />
                 {unreadCount > 0 && (
-                  <span className="absolute top-1 right-1 min-w-[18px] h-[18px] flex items-center justify-center bg-danger text-white text-[10px] font-bold rounded-full px-1 leading-none shadow-sm">
+                  <span className="absolute top-1 right-1 min-w-[18px] h-[18px] flex items-center justify-center bg-gradient-to-br from-[#e0a84a] to-amber-500 text-[#0a0f1a] text-[10px] font-bold rounded-full px-1 leading-none shadow-lg shadow-[#e0a84a]/20">
                     {unreadCount > 9 ? "9+" : unreadCount}
                   </span>
                 )}
@@ -121,14 +122,14 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
               {showDropdown && (
                 <div
                   ref={dropdownRef}
-                  className="absolute right-0 top-full mt-2 w-80 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden"
+                  className="absolute right-0 top-full mt-2 w-80 bg-[#0d1322]/95 backdrop-blur-xl border border-white/[0.06] rounded-2xl shadow-2xl z-50 overflow-hidden"
                 >
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                    <h3 className="text-sm font-semibold text-foreground">Notifications</h3>
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
+                    <h3 className="text-sm font-semibold text-white">Notifications</h3>
                     {unreadCount > 0 && (
                       <button
                         onClick={markAllRead}
-                        className="text-xs text-primary hover:underline"
+                        className="text-xs text-[#e0a84a] hover:underline"
                       >
                         Mark all read
                       </button>
@@ -136,7 +137,7 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
                   </div>
                   <div className="max-h-80 overflow-y-auto">
                     {notifications.length === 0 ? (
-                      <div className="px-4 py-8 text-center text-sm text-text-secondary">
+                      <div className="px-4 py-8 text-center text-sm text-white/40">
                         No notifications yet
                       </div>
                     ) : (
@@ -144,22 +145,22 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
                         <div
                           key={n.id}
                           className={cn(
-                            "flex items-start gap-3 px-4 py-3 border-b border-border/50 last:border-0 hover:bg-muted/50 transition-colors cursor-pointer",
-                            !n.is_read && "bg-primary-lighter/30"
+                            "flex items-start gap-3 px-4 py-3 border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors cursor-pointer",
+                            !n.is_read && "bg-[#e0a84a]/[0.04]"
                           )}
                         >
                           <span className="text-lg leading-none mt-0.5 shrink-0">
                             {typeIcons[n.type] || "📋"}
                           </span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-foreground leading-tight">{n.title}</p>
+                            <p className="text-sm font-medium text-white/80 leading-tight">{n.title}</p>
                             {n.message && (
-                              <p className="text-xs text-text-secondary mt-0.5 line-clamp-2">{n.message}</p>
+                              <p className="text-xs text-white/50 mt-0.5 line-clamp-2">{n.message}</p>
                             )}
-                            <p className="text-[10px] text-text-secondary/70 mt-1">{notificationTime(n.sent_at)}</p>
+                            <p className="text-[10px] text-white/30 mt-1">{notificationTime(n.sent_at)}</p>
                           </div>
                           {!n.is_read && (
-                            <span className="w-2 h-2 rounded-full bg-primary shrink-0 mt-1.5" />
+                            <span className="w-2 h-2 rounded-full bg-[#e0a84a] shrink-0 mt-1.5" />
                           )}
                         </div>
                       ))
@@ -176,7 +177,7 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
         {children}
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-card border-t border-border">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#0d1322]/90 backdrop-blur-xl border-t border-white/[0.06]">
         <div className="max-w-lg mx-auto flex items-center justify-around h-16 px-2">
           {tabs.map(({ href, label, icon: Icon }) => {
             const isActive = pathname === href;
@@ -185,12 +186,15 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
                 key={href}
                 href={href}
                 className={cn(
-                  "flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors",
-                  isActive ? "text-primary" : "text-text-secondary hover:text-foreground"
+                  "flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded-xl transition-all duration-200 relative",
+                  isActive ? "text-[#e0a84a]" : "text-white/40 hover:text-white/70"
                 )}
               >
-                <Icon className="w-5 h-5" />
-                <span className="text-[10px] font-medium leading-tight">{label}</span>
+                {isActive && (
+                  <span className="absolute inset-0 rounded-xl bg-[#e0a84a]/10 border border-[#e0a84a]/20" />
+                )}
+                <Icon className={cn("w-5 h-5 relative z-10", isActive && "drop-shadow-[0_0_6px_rgba(224,168,74,0.3)]")} />
+                <span className="text-[10px] font-medium leading-tight relative z-10">{label}</span>
               </Link>
             );
           })}

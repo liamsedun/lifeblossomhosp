@@ -9,6 +9,21 @@ import { useAuth } from "@/contexts/auth-context";
 import { useAppointmentStore } from "@/stores/appointment-store";
 import { usePaymentStore } from "@/stores/payment-store";
 
+function GlassCard({ children, href, className }: { children: React.ReactNode; href?: string; className?: string }) {
+  const content = (
+    <div className={cn(
+      "relative rounded-2xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-xl p-4 overflow-hidden transition-all duration-300 hover:border-white/[0.12] group",
+      href && "cursor-pointer hover:-translate-y-0.5 hover:shadow-lg hover:shadow-[#e0a84a]/5",
+      className
+    )}>
+      <div className="absolute top-0 right-0 w-32 h-32 translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-[#e0a84a]/[0.04] to-transparent" />
+      {children}
+    </div>
+  );
+  if (href) return <Link href={href}>{content}</Link>;
+  return content;
+}
+
 export default function PatientDashboard() {
   const { user } = useAuth();
 
@@ -41,9 +56,9 @@ export default function PatientDashboard() {
   const lastPayment = sortedPayments?.[0];
 
   const quickActions = [
-    { label: "Book", href: "/patient/book", variant: "primary" as const },
-    { label: "Pay", href: "/patient/payments", variant: "accent" as const },
-    { label: "Chat", href: "https://wa.me/2349058038476", variant: "outline" as const },
+    { label: "Book", href: "/patient/book", gradient: "from-[#e0a84a] to-amber-500" },
+    { label: "Pay", href: "/patient/payments", gradient: "from-emerald-500 to-teal-400" },
+    { label: "Chat", href: "https://wa.me/2349058038476", gradient: "from-blue-500 to-indigo-400" },
   ];
 
   const summaryCards = [
@@ -56,8 +71,8 @@ export default function PatientDashboard() {
         ? (upcoming.staff?.user?.first_name ? `Dr. ${upcoming.staff.user.first_name} ${upcoming.staff.user.last_name.charAt(0)}.` : upcoming.reason || "Appointment")
         : "Book a visit",
       icon: Calendar,
-      color: "text-primary",
-      bg: "bg-primary-lighter",
+      gradient: "from-amber-500/20 via-amber-400/10 to-transparent",
+      iconBg: "bg-amber-500/10 text-amber-400",
       href: "/patient/appointments",
     },
     {
@@ -65,8 +80,8 @@ export default function PatientDashboard() {
       value: loading ? "..." : `₦${outstandingTotal.toLocaleString()}`,
       sub: loading ? "" : `${pendingInvoices?.length ?? 0} pending invoice(s)`,
       icon: CreditCard,
-      color: "text-warning",
-      bg: "bg-warning-light",
+      gradient: "from-rose-500/20 via-rose-400/10 to-transparent",
+      iconBg: "bg-rose-500/10 text-rose-400",
       href: "/patient/payments",
     },
     {
@@ -74,8 +89,8 @@ export default function PatientDashboard() {
       value: loading ? "..." : lastPayment ? `₦${lastPayment.amount.toLocaleString()}` : "None",
       sub: loading ? "" : lastPayment ? `Paid on ${new Date(lastPayment.payment_date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : "",
       icon: FileText,
-      color: "text-accent",
-      bg: "bg-accent-light",
+      gradient: "from-emerald-500/20 via-emerald-400/10 to-transparent",
+      iconBg: "bg-emerald-500/10 text-emerald-400",
       href: "/patient/payments",
     },
     {
@@ -83,8 +98,8 @@ export default function PatientDashboard() {
       value: "What would you like?",
       sub: "Book, Pay or Chat",
       icon: Zap,
-      color: "text-secondary",
-      bg: "bg-secondary-light",
+      gradient: "from-blue-500/20 via-blue-400/10 to-transparent",
+      iconBg: "bg-blue-500/10 text-blue-400",
       href: "/patient",
     },
   ];
@@ -104,8 +119,8 @@ export default function PatientDashboard() {
       .slice(0, 2)
       .map((a) => ({
         icon: a.status === "completed" ? (CheckCircle as React.ElementType) : (Clock as React.ElementType),
-        color: a.status === "completed" ? "text-accent" : "text-secondary",
-        bg: a.status === "completed" ? "bg-accent-light" : "bg-secondary-light",
+        color: a.status === "completed" ? "text-emerald-400" : "text-blue-400",
+        bg: a.status === "completed" ? "bg-emerald-500/10" : "bg-blue-500/10",
         title: a.status === "completed" ? "Appointment Completed" : a.status === "cancelled" ? "Appointment Cancelled" : "Appointment Scheduled",
         desc: a.staff?.user?.first_name ? `Dr. ${a.staff.user.first_name} ${a.staff.user.last_name.charAt(0)}.` : a.reason || "Visit",
         time: new Date(a.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
@@ -116,8 +131,8 @@ export default function PatientDashboard() {
   if (lastPayment) {
     recentActivity.push({
       icon: CreditCard as React.ElementType,
-      color: "text-primary",
-      bg: "bg-primary-lighter",
+      color: "text-[#e0a84a]",
+      bg: "bg-[#e0a84a]/10",
       title: "Payment Made",
       desc: `₦${lastPayment.amount.toLocaleString()} - ${lastPayment.invoice?.invoice_number || "Payment"}`,
       time: new Date(lastPayment.payment_date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
@@ -127,29 +142,25 @@ export default function PatientDashboard() {
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-text-secondary text-sm">Welcome back{user ? `, ${user.first_name}` : ""}</p>
-        <Logo variant="inline" iconSize={28} textClass="text-xl font-bold" />
+        <p className="text-white/50 text-sm">Welcome back{user ? `, ${user.first_name}` : ""}</p>
+        <Logo variant="inline" iconSize={28} textClass="text-xl font-bold text-white" />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         {summaryCards.map((card) => (
-          <Link
-            key={card.title}
-            href={card.href || "#"}
-            className="bg-card border border-border rounded-xl p-4 card-shadow hover:card-shadow-hover transition-all hover:-translate-y-0.5"
-          >
-            <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center mb-3", card.bg)}>
-              <card.icon className={cn("w-5 h-5", card.color)} />
+          <GlassCard key={card.title} href={card.href}>
+            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center mb-3", card.iconBg)}>
+              <card.icon className="w-5 h-5" />
             </div>
-            <p className="text-[11px] font-medium text-text-secondary uppercase tracking-wider mb-1">{card.title}</p>
-            <p className="text-sm font-bold text-foreground">{card.value}</p>
-            {card.sub && <p className="text-xs text-text-secondary mt-0.5">{card.sub}</p>}
-          </Link>
+            <p className="text-[10px] font-medium text-white/40 uppercase tracking-wider mb-1">{card.title}</p>
+            <p className="text-sm font-bold text-white">{card.value}</p>
+            {card.sub && <p className="text-xs text-white/50 mt-0.5 line-clamp-1">{card.sub}</p>}
+          </GlassCard>
         ))}
       </div>
 
-      <div className="bg-card border border-border rounded-xl p-4 card-shadow">
-        <h3 className="text-sm font-semibold text-foreground mb-3">Quick Actions</h3>
+      <GlassCard>
+        <h3 className="text-sm font-semibold text-white mb-3">Quick Actions</h3>
         <div className="flex flex-wrap gap-2">
           {quickActions.map((action) => {
             const isExternal = action.href.startsWith("http");
@@ -159,10 +170,8 @@ export default function PatientDashboard() {
                 href={action.href}
                 {...(isExternal ? { target: "_blank", rel: "noopener noreferrer" } : {})}
                 className={cn(
-                  "inline-flex items-center gap-1.5 px-4 h-9 rounded-lg text-sm font-medium transition-all hover:opacity-90",
-                  action.variant === "primary" && "bg-primary text-white",
-                  action.variant === "accent" && "bg-accent text-white",
-                  action.variant === "outline" && "border border-border text-foreground hover:bg-muted"
+                  "inline-flex items-center gap-1.5 px-5 h-10 rounded-xl text-sm font-medium transition-all hover:scale-105 active:scale-[0.98] bg-gradient-to-r text-white shadow-lg",
+                  action.gradient,
                 )}
               >
                 {action.label}
@@ -171,32 +180,32 @@ export default function PatientDashboard() {
             );
           })}
         </div>
-      </div>
+      </GlassCard>
 
-      <div className="bg-card border border-border rounded-xl p-4 card-shadow">
+      <GlassCard>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-foreground">Recent Activity</h3>
-          <ChevronRight className="w-4 h-4 text-text-secondary" />
+          <h3 className="text-sm font-semibold text-white">Recent Activity</h3>
+          <ChevronRight className="w-4 h-4 text-white/30" />
         </div>
         {recentActivity.length > 0 ? (
           <div className="space-y-3">
             {recentActivity.map((item, i) => (
               <div key={i} className="flex gap-3">
-                <div className={cn("w-8 h-8 rounded-full flex items-center justify-center shrink-0", item.bg)}>
+                <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0", item.bg)}>
                   <item.icon className={cn("w-4 h-4", item.color)} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground">{item.title}</p>
-                  <p className="text-xs text-text-secondary">{item.desc}</p>
-                  <p className="text-[11px] text-text-secondary mt-0.5">{item.time}</p>
+                  <p className="text-sm font-medium text-white/80">{item.title}</p>
+                  <p className="text-xs text-white/50">{item.desc}</p>
+                  <p className="text-[11px] text-white/30 mt-0.5">{item.time}</p>
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-xs text-text-secondary">No recent activity yet.</p>
+          <p className="text-xs text-white/40">No recent activity yet.</p>
         )}
-      </div>
+      </GlassCard>
     </div>
   );
 }

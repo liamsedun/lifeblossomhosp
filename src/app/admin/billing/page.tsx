@@ -3,7 +3,8 @@
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import {
-  Search, Plus, Eye, DollarSign, TrendingUp, Wallet, Receipt, Loader2, CheckCircle, AlertCircle, ExternalLink
+  Search, Plus, Eye, DollarSign, TrendingUp, Wallet, Receipt,
+  Loader2, CheckCircle, AlertCircle, FileText,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,13 @@ const statusStyles: Record<DisplayStatus, "success" | "secondary" | "destructive
   Partial: "warning",
 };
 
+const statusIcon: Record<DisplayStatus, typeof CheckCircle> = {
+  Paid: CheckCircle,
+  Pending: FileText,
+  Overdue: AlertCircle,
+  Partial: AlertCircle,
+};
+
 function mapStatus(apiStatus: InvoiceStatus, dueDate: string | null): DisplayStatus {
   switch (apiStatus) {
     case "paid": return "Paid";
@@ -48,10 +56,21 @@ function mapStatus(apiStatus: InvoiceStatus, dueDate: string | null): DisplaySta
   }
 }
 
+function GradientCard({ children, gradient, className }: { children: React.ReactNode; gradient: string; className?: string }) {
+  return (
+    <div className={cn("relative group", className)}>
+      <div className={cn("absolute inset-0 rounded-2xl opacity-20 blur-xl transition-opacity duration-500 group-hover:opacity-30", gradient)} />
+      <div className="relative rounded-2xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-xl p-5 overflow-hidden">
+        <div className={cn("absolute top-0 right-0 w-48 h-48 -translate-y-1/2 translate-x-1/2 rounded-full opacity-10", gradient)} />
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export default function BillingPage() {
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
-  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceDisplay | null>(null);
 
   const invoicesData = usePaymentStore((s) => s.invoices);
   const loading = usePaymentStore((s) => s.loading);
@@ -86,10 +105,10 @@ export default function BillingPage() {
   }, [invoicesData]);
 
   const summaryCards = [
-    { label: "Collected Revenue", value: loading ? "—" : formatCurrency(totals.totalRevenue), icon: TrendingUp, color: "text-accent", bg: "bg-accent-light" },
-    { label: "Outstanding", value: loading ? "—" : formatCurrency(totals.outstandingAmount), icon: Wallet, color: "text-warning", bg: "bg-warning-light" },
-    { label: "This Month", value: loading ? "—" : formatCurrency(totals.paidThisMonth), icon: DollarSign, color: "text-primary", bg: "bg-primary-lighter" },
-    { label: "Total Invoices", value: loading ? "—" : String(invoices?.length ?? 0), icon: Receipt, color: "text-secondary", bg: "bg-secondary-light" },
+    { label: "Collected Revenue", value: loading ? "—" : formatCurrency(totals.totalRevenue), icon: TrendingUp, gradient: "bg-gradient-to-br from-emerald-500 via-emerald-400 to-teal-300" },
+    { label: "Outstanding", value: loading ? "—" : formatCurrency(totals.outstandingAmount), icon: Wallet, gradient: "bg-gradient-to-br from-amber-500 via-orange-400 to-rose-300" },
+    { label: "This Month", value: loading ? "—" : formatCurrency(totals.paidThisMonth), icon: DollarSign, gradient: "bg-gradient-to-br from-blue-500 via-indigo-400 to-violet-300" },
+    { label: "Total Invoices", value: loading ? "—" : String(invoices?.length ?? 0), icon: Receipt, gradient: "bg-gradient-to-br from-purple-500 via-pink-400 to-rose-300" },
   ];
 
   const filtered = invoices.filter(
@@ -99,121 +118,124 @@ export default function BillingPage() {
       inv.service.toLowerCase().includes(search.toLowerCase())
   );
 
+  const totalOutstanding = overdueInvoices.reduce((s, i) => s + (i.total_amount - i.paid_amount), 0);
+
   return (
     <div className="space-y-5">
       {overdueInvoices.length > 0 && (
-        <div className="flex items-center gap-2 px-4 py-2.5 bg-danger/5 border border-danger/20 rounded-xl text-sm">
-          <AlertCircle className="w-4 h-4 text-danger shrink-0" />
-          <span className="text-danger font-medium">
-            {overdueInvoices.length} overdue invoice{overdueInvoices.length > 1 ? "s" : ""} — {formatCurrency(overdueInvoices.reduce((s, i) => s + (i.total_amount - i.paid_amount), 0))}
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-red-500/10 border border-red-500/20 rounded-xl text-sm">
+          <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+          <span className="text-red-400 font-medium">
+            {overdueInvoices.length} overdue invoice{overdueInvoices.length > 1 ? "s" : ""} — {formatCurrency(totalOutstanding)}
           </span>
         </div>
       )}
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Billing</h1>
-          <p className="text-sm text-text-secondary mt-1">Manage invoices and payments</p>
+          <h1 className="text-2xl font-bold text-white">Billing</h1>
+          <p className="text-sm text-white/50 mt-1">Manage invoices and payments</p>
         </div>
-        <Button onClick={() => setShowCreate(true)}><Plus className="size-4" />Create Invoice</Button>
+        <Button onClick={() => setShowCreate(true)}
+          className="bg-[#e0a84a] hover:bg-[#e0a84a]/90 text-[#0a0f1a] font-semibold shadow-lg shadow-[#e0a84a]/20">
+          <Plus className="size-4" />Create Invoice
+        </Button>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {summaryCards.map((card) => {
           const Icon = card.icon;
           return (
-            <Card key={card.label}>
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-text-secondary">{card.label}</p>
-                    <p className="text-xl font-bold text-foreground mt-1">{card.value}</p>
-                  </div>
-                  <div className={cn("flex size-10 items-center justify-center rounded-lg", card.bg)}>
-                    <Icon className={cn("size-5", card.color)} />
-                  </div>
+            <GradientCard key={card.label} gradient={card.gradient}>
+              <div className="flex items-start justify-between relative z-10">
+                <div>
+                  <p className="text-sm text-white/50">{card.label}</p>
+                  <p className="text-xl font-bold text-white mt-1">{card.value}</p>
                 </div>
-              </CardContent>
-            </Card>
+                <div className="flex size-11 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.06] backdrop-blur-sm">
+                  <Icon className="size-5 text-white/80" />
+                </div>
+              </div>
+            </GradientCard>
           );
         })}
       </div>
 
-      <Card>
-        <CardContent className="p-4">
+      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-xl">
+        <div className="p-4 border-b border-white/[0.06]">
           <div className="relative max-w-sm">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-secondary" />
-            <Input placeholder="Search invoices..." className="h-9 pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/40" />
+            <Input placeholder="Search invoices..."
+              className="h-9 pl-9 text-sm bg-white/[0.04] border-white/[0.08] text-white/80 placeholder:text-white/30 focus-visible:border-[#e0a84a]/40 focus-visible:ring-[#e0a84a]/20"
+              value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      <Card>
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="flex items-center justify-center py-16"><Loader2 className="size-6 animate-spin text-primary" /></div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-xs text-text-secondary">
-                    <th className="px-5 py-3.5 font-medium">Invoice #</th>
-                    <th className="px-5 py-3.5 font-medium">Patient</th>
-                    <th className="px-5 py-3.5 font-medium">Service</th>
-                    <th className="px-5 py-3.5 font-medium">Amount</th>
-                    <th className="px-5 py-3.5 font-medium">Outstanding</th>
-                    <th className="px-5 py-3.5 font-medium">Date</th>
-                    <th className="px-5 py-3.5 font-medium">Status</th>
-                    <th className="px-5 py-3.5 font-medium text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.length === 0 ? (
-                    <tr><td colSpan={8} className="px-5 py-12 text-center text-sm text-text-secondary">No invoices found.</td></tr>
-                  ) : (
-                    filtered.map((inv) => {
-                      const outstanding = inv.raw.total_amount - inv.raw.paid_amount;
-                      return (
-                        <tr key={inv.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
-                          <td className="px-5 py-3.5 font-mono text-xs font-medium text-foreground">{inv.invoiceNumber}</td>
-                          <td className="px-5 py-3.5 font-medium text-foreground">{inv.patient}</td>
-                          <td className="px-5 py-3.5 text-text-secondary">{inv.service}</td>
-                          <td className="px-5 py-3.5 font-medium text-foreground">{formatCurrency(inv.amount)}</td>
-                          <td className="px-5 py-3.5">
-                            {inv.status === "Paid" ? (
-                              <span className="text-accent text-xs font-medium">Cleared</span>
-                            ) : (
-                              <span className={cn("text-xs font-semibold", outstanding > 0 ? "text-warning" : "text-text-secondary")}>
-                                {outstanding > 0 ? formatCurrency(outstanding) : "—"}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-5 py-3.5 text-text-secondary">{inv.date}</td>
-                          <td className="px-5 py-3.5">
-                            <Badge variant={statusStyles[inv.status]} className="text-[11px]">
-                              {inv.status === "Partial" ? <span className="flex items-center gap-1"><AlertCircle className="w-3 h-3" />{inv.status}</span> :
-                               inv.status === "Paid" ? <span className="flex items-center gap-1"><CheckCircle className="w-3 h-3" />{inv.status}</span> :
-                               inv.status}
-                            </Badge>
-                          </td>
-                          <td className="px-5 py-3.5 text-right">
-                            <Link
-                              href={`/admin/billing/${inv.id}`}
-                              className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg text-xs text-primary font-medium hover:bg-primary/5 transition-colors"
-                            >
-                              <Eye className="size-3.5" />View
-                            </Link>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="size-6 animate-spin text-[#e0a84a]" />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-white/[0.06] text-left text-xs text-white/40">
+                  <th className="px-5 py-3.5 font-medium">Invoice #</th>
+                  <th className="px-5 py-3.5 font-medium">Patient</th>
+                  <th className="px-5 py-3.5 font-medium">Service</th>
+                  <th className="px-5 py-3.5 font-medium">Amount</th>
+                  <th className="px-5 py-3.5 font-medium">Outstanding</th>
+                  <th className="px-5 py-3.5 font-medium">Date</th>
+                  <th className="px-5 py-3.5 font-medium">Status</th>
+                  <th className="px-5 py-3.5 font-medium text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={8} className="px-5 py-12 text-center text-sm text-white/40">No invoices found.</td></tr>
+                ) : (
+                  filtered.map((inv) => {
+                    const outstanding = inv.raw.total_amount - inv.raw.paid_amount;
+                    const StatusIcon = statusIcon[inv.status];
+                    return (
+                      <tr key={inv.id} className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors">
+                        <td className="px-5 py-3.5 font-mono text-xs font-medium text-white">{inv.invoiceNumber}</td>
+                        <td className="px-5 py-3.5 font-medium text-white/80">{inv.patient}</td>
+                        <td className="px-5 py-3.5 text-white/50">{inv.service}</td>
+                        <td className="px-5 py-3.5 font-medium text-white">{formatCurrency(inv.amount)}</td>
+                        <td className="px-5 py-3.5">
+                          {inv.status === "Paid" ? (
+                            <span className="text-emerald-400 text-xs font-medium">Cleared</span>
+                          ) : (
+                            <span className={cn("text-xs font-semibold", outstanding > 0 ? "text-amber-400" : "text-white/50")}>
+                              {outstanding > 0 ? formatCurrency(outstanding) : "—"}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5 text-white/50">{inv.date}</td>
+                        <td className="px-5 py-3.5">
+                          <Badge variant={statusStyles[inv.status]} className="text-[11px] flex items-center gap-1 w-fit">
+                            <StatusIcon className="size-3" />
+                            {inv.status}
+                          </Badge>
+                        </td>
+                        <td className="px-5 py-3.5 text-right">
+                          <Link
+                            href={`/admin/billing/${inv.id}`}
+                            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg text-xs text-[#e0a84a] font-medium hover:bg-[#e0a84a]/10 transition-colors"
+                          >
+                            <Eye className="size-3.5" />View
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       <CreateInvoiceModal
         open={showCreate}

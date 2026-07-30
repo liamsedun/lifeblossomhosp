@@ -321,7 +321,43 @@ CREATE TABLE notifications (
 );
 
 -- ---------------------------------------------------------------------------
--- 3.13 AUDIT LOGS
+-- 3.13 EXPENSES
+-- ---------------------------------------------------------------------------
+CREATE TABLE expenses (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id        UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  description   TEXT NOT NULL,
+  category      VARCHAR(50) NOT NULL,
+  amount        NUMERIC(12,2) NOT NULL,
+  expense_date  DATE NOT NULL,
+  payment_method VARCHAR(20) DEFAULT 'cash',
+  vendor        TEXT,
+  notes         TEXT,
+  created_by    UUID REFERENCES users(id),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ---------------------------------------------------------------------------
+-- 3.14 OTHER INCOME
+-- ---------------------------------------------------------------------------
+CREATE TABLE other_income (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id        UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  description   TEXT NOT NULL,
+  category      VARCHAR(50) NOT NULL,
+  amount        NUMERIC(12,2) NOT NULL,
+  income_date   DATE NOT NULL,
+  payment_method VARCHAR(20) DEFAULT 'cash',
+  source        TEXT,
+  notes         TEXT,
+  created_by    UUID REFERENCES users(id),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ---------------------------------------------------------------------------
+-- 3.15 AUDIT LOGS
 -- ---------------------------------------------------------------------------
 CREATE TABLE audit_logs (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -384,6 +420,12 @@ CREATE INDEX IF NOT EXISTS idx_payments_status ON payments (org_id, status);
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications (user_id, is_read);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs (org_id, entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs (org_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_expenses_org ON expenses (org_id);
+CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses (org_id, category);
+CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses (org_id, expense_date);
+CREATE INDEX IF NOT EXISTS idx_other_income_org ON other_income (org_id);
+CREATE INDEX IF NOT EXISTS idx_other_income_category ON other_income (org_id, category);
+CREATE INDEX IF NOT EXISTS idx_other_income_date ON other_income (org_id, income_date);
 
 -- ##############################################################################
 -- 5. UPDATED-AT TRIGGER

@@ -36,6 +36,18 @@ const timeSlots = [
   { label: "Evening", start: "17:00", end: "19:00", available: false },
 ];
 
+function GlassCard({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cn(
+      "relative rounded-2xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-xl p-4 overflow-hidden",
+      className
+    )}>
+      <div className="absolute top-0 right-0 w-32 h-32 translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-[#e0a84a]/[0.04] to-transparent" />
+      {children}
+    </div>
+  );
+}
+
 export default function BookAppointmentPage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -105,16 +117,16 @@ export default function BookAppointmentPage() {
   if (submitted) {
     return (
       <div className="flex flex-col items-center justify-center pt-16 space-y-4">
-        <div className="w-16 h-16 rounded-full bg-accent-light flex items-center justify-center">
-          <Check className="w-8 h-8 text-accent" />
+        <div className="w-16 h-16 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+          <Check className="w-8 h-8 text-emerald-400" />
         </div>
-        <h2 className="text-xl font-bold text-foreground">Appointment Requested!</h2>
-        <p className="text-sm text-text-secondary text-center max-w-xs">
+        <h2 className="text-xl font-bold text-white">Appointment Requested!</h2>
+        <p className="text-sm text-white/50 text-center max-w-xs">
           Your appointment has been submitted. You&apos;ll receive a confirmation shortly.
         </p>
         <Link
           href="/patient/appointments"
-          className="mt-2 h-10 px-6 bg-primary text-white text-sm font-semibold rounded-lg inline-flex items-center gap-2 hover:bg-primary-dark transition-colors"
+          className="mt-2 h-10 px-6 bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] text-sm font-semibold rounded-xl inline-flex items-center gap-2 hover:shadow-lg hover:shadow-[#e0a84a]/20 transition-all"
         >
           View Appointments
         </Link>
@@ -126,28 +138,28 @@ export default function BookAppointmentPage() {
     <div className="space-y-5">
       <div className="flex items-center gap-3">
         <Link href="/patient" className="p-1 -ml-1">
-          <ArrowLeft className="w-5 h-5 text-text-secondary" />
+          <ArrowLeft className="w-5 h-5 text-white/50 hover:text-white transition-colors" />
         </Link>
-        <h2 className="text-xl font-bold text-foreground">Book an Appointment</h2>
+        <h2 className="text-xl font-bold text-white">Book an Appointment</h2>
       </div>
 
-      <div className="bg-card border border-border rounded-xl p-4 card-shadow space-y-4">
+      <GlassCard className="space-y-5">
         <div className="relative">
-          <label className="text-xs font-medium text-text-secondary mb-1.5 block">Department / Service</label>
+          <label className="text-xs font-medium text-white/50 mb-1.5 block">Department / Service</label>
           <button
             onClick={() => { setShowDept(!showDept); setShowDoc(false); }}
-            className="w-full h-10 flex items-center justify-between px-3 border border-border rounded-lg text-sm text-left hover:border-primary/40 transition-colors"
+            className="w-full h-11 flex items-center justify-between px-3 border border-white/[0.08] bg-white/[0.04] rounded-xl text-sm text-left hover:border-[#e0a84a]/40 transition-all"
           >
-            <span className={department ? "text-foreground" : "text-text-secondary"}>{department || "Select department"}</span>
-            <ChevronDown className="w-4 h-4 text-text-secondary" />
+            <span className={department ? "text-white" : "text-white/30"}>{department || "Select department"}</span>
+            <ChevronDown className={cn("w-4 h-4 text-white/30 transition-transform", showDept && "rotate-180")} />
           </button>
           {showDept && (
-            <div className="absolute z-20 top-full mt-1 left-0 right-0 bg-card border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+            <div className="absolute z-20 top-full mt-1 left-0 right-0 bg-[#0d1322]/95 backdrop-blur-xl border border-white/[0.06] rounded-xl shadow-2xl max-h-48 overflow-y-auto">
               {departments.map((d) => (
                 <button
                   key={d}
                   onClick={() => { setDepartment(d); setShowDept(false); }}
-                  className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors"
+                  className="w-full text-left px-3 py-2.5 text-sm text-white/70 hover:bg-white/[0.04] hover:text-white transition-colors"
                 >
                   {d}
                 </button>
@@ -157,28 +169,28 @@ export default function BookAppointmentPage() {
         </div>
 
         <div className="relative">
-          <label className="text-xs font-medium text-text-secondary mb-1.5 block">Doctor</label>
+          <label className="text-xs font-medium text-white/50 mb-1.5 block">Doctor</label>
           <button
             onClick={() => { setShowDoc(!showDoc); setShowDept(false); }}
-            className="w-full h-10 flex items-center justify-between px-3 border border-border rounded-lg text-sm text-left hover:border-primary/40 transition-colors"
+            className="w-full h-11 flex items-center justify-between px-3 border border-white/[0.08] bg-white/[0.04] rounded-xl text-sm text-left hover:border-[#e0a84a]/40 transition-all"
           >
-            <span className={doctorId ? "text-foreground" : "text-text-secondary"}>{doctorName || "Select doctor"}</span>
-            <ChevronDown className="w-4 h-4 text-text-secondary" />
+            <span className={doctorId ? "text-white" : "text-white/30"}>{doctorName || "Select doctor"}</span>
+            <ChevronDown className={cn("w-4 h-4 text-white/30 transition-transform", showDoc && "rotate-180")} />
           </button>
           {showDoc && (
-            <div className="absolute z-20 top-full mt-1 left-0 right-0 bg-card border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+            <div className="absolute z-20 top-full mt-1 left-0 right-0 bg-[#0d1322]/95 backdrop-blur-xl border border-white/[0.06] rounded-xl shadow-2xl max-h-48 overflow-y-auto">
               {loadingDoctors ? (
-                <div className="px-3 py-2.5 text-sm text-text-secondary">Loading doctors...</div>
+                <div className="px-3 py-2.5 text-sm text-white/40">Loading doctors...</div>
               ) : doctors.length === 0 ? (
-                <div className="px-3 py-2.5 text-sm text-text-secondary">No doctors available</div>
+                <div className="px-3 py-2.5 text-sm text-white/40">No doctors available</div>
               ) : doctors.map((d) => (
                 <button
                   key={d.id}
                   onClick={() => { setDoctorId(d.id); setDoctorName(`Dr. ${d.user.first_name} ${d.user.last_name.charAt(0)}.`); setShowDoc(false); }}
-                  className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors"
+                  className="w-full text-left px-3 py-2.5 text-sm hover:bg-white/[0.04] transition-colors"
                 >
-                  <span className="text-foreground">{`Dr. ${d.user.first_name} ${d.user.last_name}`}</span>
-                  <span className="text-text-secondary text-xs ml-2">{d.specialization || d.department || "General"}</span>
+                  <span className="text-white">{`Dr. ${d.user.first_name} ${d.user.last_name}`}</span>
+                  <span className="text-white/40 text-xs ml-2">{d.specialization || d.department || "General"}</span>
                 </button>
               ))}
             </div>
@@ -186,20 +198,20 @@ export default function BookAppointmentPage() {
         </div>
 
         <div>
-          <label className="text-xs font-medium text-text-secondary mb-1.5 block">Date</label>
+          <label className="text-xs font-medium text-white/50 mb-1.5 block">Date</label>
           <div className="relative">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
+            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full h-10 pl-9 pr-3 border border-border rounded-lg text-sm text-foreground hover:border-primary/40 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              className="w-full h-11 pl-9 pr-3 border border-white/[0.08] bg-white/[0.04] rounded-xl text-sm text-white hover:border-[#e0a84a]/40 transition-all focus:outline-none focus:ring-2 focus:ring-[#e0a84a]/20 focus:border-[#e0a84a]/40 [color-scheme:dark]"
             />
           </div>
         </div>
 
         <div>
-          <label className="text-xs font-medium text-text-secondary mb-1.5 block">Time Slot</label>
+          <label className="text-xs font-medium text-white/50 mb-1.5 block">Time Slot</label>
           <div className="grid grid-cols-3 gap-2">
             {timeSlots.map((slot) => (
               <button
@@ -207,15 +219,15 @@ export default function BookAppointmentPage() {
                 disabled={!slot.available}
                 onClick={() => setTimeSlot(slot.label)}
                 className={cn(
-                  "flex flex-col items-center py-2.5 px-1 rounded-lg border text-xs transition-colors",
+                  "flex flex-col items-center py-3 px-1 rounded-xl border text-xs transition-all",
                   timeSlot === slot.label
-                    ? "border-primary bg-primary-lighter text-primary"
+                    ? "border-[#e0a84a]/40 bg-[#e0a84a]/10 text-[#e0a84a] shadow-lg shadow-[#e0a84a]/5"
                     : slot.available
-                    ? "border-border text-foreground hover:border-primary/40"
-                    : "border-border text-text-secondary/50 bg-muted/50 cursor-not-allowed"
+                    ? "border-white/[0.08] text-white/60 hover:border-[#e0a84a]/30 hover:bg-white/[0.04]"
+                    : "border-white/[0.04] text-white/20 bg-white/[0.02] cursor-not-allowed"
                 )}
               >
-                <Clock className="w-3.5 h-3.5 mb-0.5" />
+                <Clock className={cn("w-4 h-4 mb-1", timeSlot === slot.label ? "text-[#e0a84a]" : "text-white/40")} />
                 <span className="font-medium">{slot.label}</span>
                 <span className="text-[10px] mt-0.5">{slot.start} – {slot.end}</span>
               </button>
@@ -224,27 +236,27 @@ export default function BookAppointmentPage() {
         </div>
 
         <div>
-          <label className="text-xs font-medium text-text-secondary mb-1.5 block">Reason for Visit</label>
+          <label className="text-xs font-medium text-white/50 mb-1.5 block">Reason for Visit</label>
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={3}
             placeholder="Briefly describe your symptoms or reason for visit..."
-            className="w-full px-3 py-2.5 border border-border rounded-lg text-sm text-foreground placeholder:text-text-secondary resize-none hover:border-primary/40 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+            className="w-full px-3 py-2.5 border border-white/[0.08] bg-white/[0.04] rounded-xl text-sm text-white placeholder:text-white/30 resize-none hover:border-[#e0a84a]/40 transition-all focus:outline-none focus:ring-2 focus:ring-[#e0a84a]/20 focus:border-[#e0a84a]/40"
           />
         </div>
 
           {error && (
-            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
+            <div className="rounded-xl bg-rose-500/10 border border-rose-500/20 p-3 text-sm text-rose-400">{error}</div>
           )}
           <button
             onClick={handleSubmit}
             disabled={!department || !doctorId || !date || !timeSlot || saving}
-            className="w-full h-12 bg-primary text-white text-sm font-semibold rounded-xl shadow-lg hover:bg-primary-dark transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+            className="w-full h-12 bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] text-sm font-semibold rounded-xl shadow-lg shadow-[#e0a84a]/20 hover:shadow-xl hover:shadow-[#e0a84a]/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
           >
             {saving ? "Booking..." : "Confirm Booking"}
           </button>
-      </div>
+      </GlassCard>
     </div>
   );
 }
