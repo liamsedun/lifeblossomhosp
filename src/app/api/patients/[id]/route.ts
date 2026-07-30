@@ -41,7 +41,7 @@ export const PUT = withAuth(async (req, supabase, authUserId, context) => {
   for (const k of ["date_of_birth", "gender", "blood_group", "genotype", "height_cm", "weight_kg",
     "allergies", "chronic_conditions", "address", "city", "state",
     "emergency_contact_name", "emergency_contact_phone", "emergency_contact_rel"] as const)
-    if (body[k] !== undefined) patientFields[k] = body[k];
+    if (body[k] !== undefined && body[k] !== "") patientFields[k] = body[k];
 
   const { data, error } = await supabase.from("patients").update(patientFields).eq("id", id)
     .select("*, user:users(id, org_id, email, role, first_name, last_name, phone, avatar_url, is_active)").single();

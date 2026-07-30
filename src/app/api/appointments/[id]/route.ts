@@ -21,7 +21,7 @@ export const PUT = withAuth(async (req, supabase, _uid, context) => {
 
   const allowed = ["patient_id", "doctor_id", "appointment_date", "start_time", "end_time", "type", "status", "reason", "notes"];
   const updates: Record<string, any> = {};
-  for (const k of allowed) if (body[k] !== undefined) updates[k] = body[k];
+  for (const k of allowed) if (body[k] !== undefined && body[k] !== "") updates[k] = body[k];
 
   const { data, error } = await supabase.from("appointments").update(updates).eq("id", id)
     .select("*, patient:patients(*, user:users(id, first_name, last_name)), doctor:staff!doctor_id(*, user:users(id, first_name, last_name))")

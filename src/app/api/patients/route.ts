@@ -78,7 +78,7 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   };
   for (const k of ["date_of_birth", "gender", "blood_group", "address", "city", "state",
     "emergency_contact_name", "emergency_contact_phone"] as const)
-    if (body[k] !== undefined) patientFields[k] = body[k];
+    if (body[k] !== undefined && body[k] !== "") patientFields[k] = body[k];
 
   const { data: patient, error: patientError } = await supabase
     .from("patients").insert(patientFields)
