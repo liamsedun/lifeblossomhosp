@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError, resolveOrgId } from "@/lib/api-utils";
+import { createServiceClient } from "@/lib/supabase/server";
 
 export const GET = withAuth(async (req, supabase, authUserId) => {
   const sp = new URL(req.url).searchParams;
@@ -52,8 +53,11 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
     throw new ValidationError("Invalid role. Must be: doctor, nurse, admin, accountant, super_admin");
   }
 
-  // Create auth user
-  const { data: authData, error: signUpError } = await supabase.auth.signUp({ email: body.email, password: body.password });
+  // Create auth user (use service admin so we bypass signup rate limits)
+  const svc = createServiceClient();
+  const { data: authData, error: signUpError } = await svc.auth.admin.createUser({
+    email: body.email, password: body.password, email_confirm: true,
+  });
   if (signUpError) return err(signUpError.message, 400);
   if (!authData.user) return err("Failed to create auth user", 500);
 

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError, resolvePatientId, resolveOrgId } from "@/lib/api-utils";
+import { createServiceClient } from "@/lib/supabase/server";
 
 // GET /api/patients — list patients (patient sees only own, staff sees all in org)
 export const GET = withAuth(async (req, supabase, authUserId) => {
@@ -56,8 +57,11 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   const orgId = await resolveOrgId(supabase, authUserId);
   if (!orgId) return err("User profile not found — visit /api/auth/setup-super-admin to re-create it", 404);
 
-  // Create auth user
-  const { data: authData, error: signUpError } = await supabase.auth.signUp({ email, password });
+  // Create auth user (use service admin to bypass signup rate limits)
+  const svc = createServiceClient();
+  const { data: authData, error: signUpError } = await svc.auth.admin.createUser({
+    email, password, email_confirm: true,
+  });
   if (signUpError) return err(signUpError.message, 400);
   if (!authData.user) return err("Failed to create auth user", 500);
 
