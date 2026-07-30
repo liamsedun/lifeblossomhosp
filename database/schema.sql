@@ -167,6 +167,8 @@ CREATE TABLE staff (
   employment_type VARCHAR(50) DEFAULT 'full_time',
   base_salary     NUMERIC(12,2),
   available       BOOLEAN DEFAULT true,
+  available_from  TIME,
+  available_until TIME,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT uq_staff_org_number UNIQUE (org_id, staff_number)
