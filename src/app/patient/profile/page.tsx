@@ -64,7 +64,7 @@ export default function ProfilePage() {
   const initials = user ? `${user.first_name.charAt(0)}${user.last_name.charAt(0)}`.toUpperCase() : "PA";
 
   const personalInfo: Array<{ label: string; value: string; icon: React.ElementType; field?: string }> = [
-    { label: "Full Name", value: fullName, icon: User },
+    { label: "Full Name", value: fullName, icon: User, field: "full_name" },
     { label: "Email", value: user?.email || "...", icon: Mail, field: "email" },
     { label: "Phone", value: user?.phone || "Not provided", icon: Phone, field: "phone" },
     { label: "Date of Birth", value: patient?.date_of_birth ? new Date(patient.date_of_birth).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "Not provided", icon: Calendar },
@@ -91,14 +91,22 @@ export default function ProfilePage() {
     setError("");
     setSuccessMsg("");
     try {
+      let body: Record<string, any>;
+      if (editingField === "full_name") {
+        const parts = editValue.trim().split(" ");
+        body = { first_name: parts[0] || "", last_name: parts.slice(1).join(" ") || parts[0] || "" };
+      } else {
+        body = { [editingField]: editValue.trim() };
+      }
       const res = await fetch("/api/auth/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [editingField]: editValue.trim() }),
+        body: JSON.stringify(body),
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || "Failed to update");
-      setSuccessMsg(`${editingField === "email" ? "Email" : "Phone"} updated successfully`);
+      const label = editingField === "full_name" ? "Name" : editingField === "email" ? "Email" : "Phone";
+      setSuccessMsg(`${label} updated successfully`);
       setEditingField(null);
     } catch (err: any) {
       setError(err.message);

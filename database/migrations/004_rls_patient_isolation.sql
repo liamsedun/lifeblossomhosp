@@ -13,7 +13,7 @@ END $$;
 CREATE OR REPLACE FUNCTION public.current_user_org_id()
 RETURNS UUID AS $$
   SELECT org_id FROM public.users WHERE id = auth.uid();
-$$ LANGUAGE SQL STABLE;
+$$ LANGUAGE SQL STABLE SECURITY DEFINER;
 
 -- 2. Drop previous weak org-only policies
 DO $$ BEGIN DROP POLICY IF EXISTS org_isolation ON appointments; END $$;
@@ -32,7 +32,7 @@ RETURNS BOOLEAN AS $$
     WHERE id = auth.uid()
     AND role::text IN ('super_admin', 'admin', 'doctor', 'nurse', 'accountant')
   );
-$$ LANGUAGE SQL STABLE;
+$$ LANGUAGE SQL STABLE SECURITY DEFINER;
 
 -- 4. Patient-level RLS policies
 
