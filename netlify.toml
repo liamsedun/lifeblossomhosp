@@ -1,9 +1,10 @@
 [build]
   command   = "npm run build"
-  publish   = ".next"
+  # publish omitted — Netlify Next.js Runtime manages its own output
   functions = "netlify/functions"
 
 [build.environment]
+  # Let the Netlify Next.js Runtime handle output mode
   NEXT_PRIVATE_STANDALONE = "false"
 
 # ─── Netlify Next.js Runtime ─────────────────────────────────────
@@ -57,24 +58,5 @@
     Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
 
 # ─── Redirects ───────────────────────────────────────────────────
-# Next.js App Router handles its own routing, but these catch
-# common legacy / edge-case redirects.
-
-[[redirects]]
-  from = "/login"
-  to   = "/login"
-  status = 200
-
-# API routes handled by Next.js — no extra rewrites needed.
-
-[[redirects]]
-  from = "/staff/login"
-  to   = "/staff/login"
-  status = 200
-
-# Catch-all — 404 fallback (Next.js App Router handles this natively)
-[[redirects]]
-  from = "/*"
-  to   = "/_next/404"
-  status = 404
-  force = false
+# Next.js App Router handles all routing natively.
+# No redirects needed unless adding legacy URL support.
