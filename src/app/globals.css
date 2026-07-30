@@ -1,26 +1,58 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-primary: #0F4C81;
+  --color-primary-light: #1A6BB5;
+  --color-primary-lighter: #EAF4FF;
+  --color-primary-dark: #0B3A63;
+  --color-secondary: #0891B2;
+  --color-secondary-light: #E0F2FE;
+  --color-accent: #16A34A;
+  --color-accent-light: #DCFCE7;
+  --color-warning: #F39C12;
+  --color-warning-light: #FEF3C7;
+  --color-danger: #E74C3C;
+  --color-danger-light: #FEE2E2;
+  --color-background: #F7F9FC;
+  --color-foreground: #1F2D3D;
+  --color-text-secondary: #6B7A90;
+  --color-card: #FFFFFF;
+  --color-border: #E5EAF0;
+  --color-muted: #F1F4F9;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  --background: #F7F9FC;
+  --foreground: #1F2D3D;
+  --primary: #0F4C81;
+  --primary-light: #EAF4FF;
+  --text-secondary: #6B7A90;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
 }
+
+@layer components {
+  .card-shadow {
+    box-shadow: 0px 4px 12px rgba(0,0,0,0.05);
+  }
+  .card-shadow-hover {
+    box-shadow: 0px 8px 20px rgba(0,0,0,0.08);
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@keyframes heroZoom {
+  0%, 100% { transform: scale(1.05); }
+  50% { transform: scale(1.15); }
+}
+
