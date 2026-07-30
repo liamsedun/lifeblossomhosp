@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Users,
@@ -16,8 +16,10 @@ import {
   Search,
   Bell,
   ChevronDown,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Logo from "@/components/ui/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -29,6 +31,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/contexts/auth-context";
 
 const navItems = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
@@ -46,6 +49,8 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
@@ -66,18 +71,8 @@ export default function AdminLayout({
         )}
       >
         {/* Logo */}
-        <div className="flex h-16 items-center gap-3 border-b border-border px-6">
-          <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-white text-sm font-bold">
-            LB
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-foreground">
-              Life Blossom
-            </p>
-            <p className="text-[11px] text-text-secondary leading-tight">
-              Care &amp; Cure Hospital
-            </p>
-          </div>
+        <div className="flex h-16 items-center border-b border-border px-6">
+          <Logo variant="inline" iconSize={28} />
         </div>
 
         {/* Navigation */}
@@ -108,15 +103,17 @@ export default function AdminLayout({
         <div className="border-t border-border p-4">
           <div className="flex items-center gap-3">
             <Avatar size="sm">
-              <AvatarImage src="" alt="Admin" />
-              <AvatarFallback>DR</AvatarFallback>
+              <AvatarImage src={user?.avatar_url || ""} alt={user?.first_name || "User"} />
+              <AvatarFallback className="text-xs bg-primary-lighter text-primary font-semibold">
+                {user ? `${user.first_name[0]}${user.last_name[0]}` : "U"}
+              </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-foreground truncate">
-                Dr. Rebecca Adams
+                {user ? `${user.first_name} ${user.last_name}` : "Loading..."}
               </p>
-              <Badge variant="default" className="mt-0.5 text-[10px] px-1.5 py-0">
-                Admin
+              <Badge variant="default" className="mt-0.5 text-[10px] px-1.5 py-0 capitalize">
+                {user?.role?.replace("_", " ") || ""}
               </Badge>
             </div>
           </div>
@@ -158,20 +155,30 @@ export default function AdminLayout({
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-2 rounded-lg p-1.5 text-sm text-foreground hover:bg-muted transition-colors">
                   <Avatar size="sm">
-                    <AvatarImage src="" alt="Admin" />
-                    <AvatarFallback>DR</AvatarFallback>
+                    <AvatarImage src={user?.avatar_url || ""} alt={user?.first_name || "User"} />
+                    <AvatarFallback className="text-xs bg-primary-lighter text-primary font-semibold">
+                      {user ? `${user.first_name[0]}${user.last_name[0]}` : "U"}
+                    </AvatarFallback>
                   </Avatar>
                   <span className="hidden md:inline text-sm font-medium">
-                    Dr. Adams
+                    {user ? user.first_name : "User"}
                   </span>
                   <ChevronDown className="size-4 text-text-secondary hidden md:block" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem>Profile</DropdownMenuItem>
-                <DropdownMenuItem>Settings</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push("/admin/settings")}>
+                  Settings
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-danger">
+                <DropdownMenuItem
+                  className="text-danger"
+                  onClick={async () => {
+                    await logout();
+                    router.push("/staff/login");
+                  }}
+                >
+                  <LogOut className="size-4 mr-2" />
                   Sign Out
                 </DropdownMenuItem>
               </DropdownMenuContent>

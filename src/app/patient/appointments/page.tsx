@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Calendar, Clock, MapPin, Plus, Video, ChevronRight } from "lucide-react";
+import { Calendar, Clock, MapPin, Plus, Video, ChevronRight, X, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useAppointments } from "@/hooks/use-appointments";
+import { useAppointmentStore } from "@/stores/appointment-store";
 import type { Appointment } from "@/lib/api-types";
 
 const statusColors: Record<string, string> = {
@@ -27,7 +27,19 @@ const statusLabels: Record<string, string> = {
 
 export default function AppointmentsPage() {
   const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
-  const { data: appointments, loading } = useAppointments();
+  const store = useAppointmentStore();
+  const appointments = store.appointments;
+  const loading = store.loading;
+
+  const [rescheduleAppt, setRescheduleAppt] = useState<Appointment | null>(null);
+  const [cancelAppt, setCancelAppt] = useState<Appointment | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState("");
+  const [rescheduleTime, setRescheduleTime] = useState("");
+  const [rescheduleReason, setRescheduleReason] = useState("");
+  const [rescheduling, setRescheduling] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [actionError, setActionError] = useState("");
+  const [actionSuccess, setActionSuccess] = useState("");
 
   const upcomingAppts = (appointments ?? []).filter(
     (a) => a.status === "scheduled" || a.status === "confirmed" || a.status === "in_progress"
@@ -57,6 +69,49 @@ export default function AppointmentsPage() {
 
   const getTypeLabel = (type: string) => {
     return type === "video_call" ? "Video Call" : "In-person";
+  };
+
+  const openReschedule = (appt: Appointment) => {
+    setRescheduleAppt(appt);
+    setRescheduleDate(appt.appointment_date);
+    setRescheduleTime(appt.start_time?.slice(0, 5) || "");
+    setRescheduleReason("");
+    setActionError("");
+    setActionSuccess("");
+  };
+
+  const handleReschedule = async () => {
+    if (!rescheduleAppt || !rescheduleDate || !rescheduleTime) return;
+    setRescheduling(true);
+    setActionError("");
+    try {
+      await store.updateAppointment(rescheduleAppt.id, {
+        appointment_date: rescheduleDate,
+        start_time: rescheduleTime,
+        end_time: `${rescheduleTime.slice(0, 2)}:${String(parseInt(rescheduleTime.slice(3, 5)) + 30).padStart(2, "0")}`,
+        notes: rescheduleReason ? `Rescheduled: ${rescheduleReason}` : undefined,
+      });
+      setActionSuccess("Appointment rescheduled successfully!");
+      setTimeout(() => { setRescheduleAppt(null); setActionSuccess(""); }, 1500);
+    } catch (err: any) {
+      setActionError(err.message || "Failed to reschedule");
+    } finally {
+      setRescheduling(false);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!cancelAppt) return;
+    setCancelling(true);
+    setActionError("");
+    try {
+      await store.cancelAppointment(cancelAppt.id, "Cancelled by patient");
+      setCancelAppt(null);
+    } catch (err: any) {
+      setActionError(err.message || "Failed to cancel");
+    } finally {
+      setCancelling(false);
+    }
   };
 
   if (loading) {
@@ -156,10 +211,16 @@ export default function AppointmentsPage() {
                 </div>
                 {tab === "upcoming" && (
                   <div className="flex gap-2 mt-3 pt-3 border-t border-border">
-                    <button className="flex-1 h-9 text-xs font-medium border border-border rounded-lg text-foreground hover:bg-muted transition-colors">
+                    <button
+                      onClick={() => openReschedule(appt)}
+                      className="flex-1 h-9 text-xs font-medium border border-border rounded-lg text-foreground hover:bg-muted transition-colors"
+                    >
                       Reschedule
                     </button>
-                    <button className="flex-1 h-9 text-xs font-medium border border-danger/30 text-danger rounded-lg hover:bg-danger-light transition-colors">
+                    <button
+                      onClick={() => { setCancelAppt(appt); setActionError(""); }}
+                      className="flex-1 h-9 text-xs font-medium border border-danger/30 text-danger rounded-lg hover:bg-danger-light transition-colors"
+                    >
                       Cancel
                     </button>
                   </div>
@@ -180,6 +241,114 @@ export default function AppointmentsPage() {
       >
         <Plus className="w-6 h-6" />
       </Link>
+
+      {/* ===== Reschedule Modal ===== */}
+      {rescheduleAppt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-card border border-border rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <h3 className="text-base font-semibold text-foreground">Reschedule Appointment</h3>
+              <button onClick={() => setRescheduleAppt(null)} className="p-1 text-text-secondary hover:text-foreground">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-text-secondary">
+                {getDoctorName(rescheduleAppt)} &middot; {getSpecialty(rescheduleAppt)}
+              </p>
+              <div>
+                <label className="text-xs font-medium text-text-secondary block mb-1.5">New Date</label>
+                <input
+                  type="date"
+                  value={rescheduleDate}
+                  onChange={(e) => setRescheduleDate(e.target.value)}
+                  className="w-full h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-text-secondary block mb-1.5">New Time</label>
+                <input
+                  type="time"
+                  value={rescheduleTime}
+                  onChange={(e) => setRescheduleTime(e.target.value)}
+                  className="w-full h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-text-secondary block mb-1.5">Reason (optional)</label>
+                <input
+                  type="text"
+                  value={rescheduleReason}
+                  onChange={(e) => setRescheduleReason(e.target.value)}
+                  placeholder="Why are you rescheduling?"
+                  className="w-full h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              </div>
+              {actionError && (
+                <div className="rounded-lg bg-danger-light px-3 py-2 text-sm text-danger">{actionError}</div>
+              )}
+              {actionSuccess && (
+                <div className="flex items-center gap-2 rounded-lg bg-accent-light px-3 py-2 text-sm text-accent">
+                  <Check className="w-4 h-4" />
+                  {actionSuccess}
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setRescheduleAppt(null)}
+                  className="flex-1 h-11 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleReschedule}
+                  disabled={rescheduling || !rescheduleDate || !rescheduleTime}
+                  className="flex-1 h-11 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-dark transition-colors disabled:opacity-50"
+                >
+                  {rescheduling ? "Rescheduling..." : "Confirm"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Cancel Confirmation ===== */}
+      {cancelAppt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-card border border-border rounded-2xl shadow-xl w-full max-w-xs p-6 text-center">
+            <div className="w-12 h-12 rounded-full bg-danger-light flex items-center justify-center mx-auto mb-3">
+              <X className="w-6 h-6 text-danger" />
+            </div>
+            <h3 className="text-base font-semibold text-foreground mb-1">Cancel Appointment</h3>
+            <p className="text-sm text-text-secondary mb-5">
+              Cancel your appointment with {getDoctorName(cancelAppt)} on{" "}
+              {new Date(cancelAppt.appointment_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+              ?
+            </p>
+            {actionError && (
+              <div className="rounded-lg bg-danger-light px-3 py-2 text-sm text-danger mb-4">{actionError}</div>
+            )}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setCancelAppt(null)}
+                className="flex-1 h-11 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors"
+              >
+                Keep
+              </button>
+              <button
+                onClick={handleCancel}
+                disabled={cancelling}
+                className="flex-1 h-11 rounded-lg bg-danger text-white text-sm font-semibold hover:bg-danger/90 transition-colors disabled:opacity-50"
+              >
+                {cancelling ? "Cancelling..." : "Yes, Cancel"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

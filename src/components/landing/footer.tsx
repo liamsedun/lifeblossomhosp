@@ -1,4 +1,5 @@
 import { Globe, MessageCircle, Camera, Play, Heart } from "lucide-react";
+import Logo from "@/components/ui/logo";
 
 const quickLinks = [
   { label: "Home", href: "#home" },
@@ -6,7 +7,7 @@ const quickLinks = [
   { label: "Our Doctors", href: "#doctors" },
   { label: "About Us", href: "#about" },
   { label: "Contact", href: "#contact" },
-  { label: "Book Appointment", href: "#book" },
+  { label: "Book Appointment", href: "/login" },
 ];
 
 const socialLinks = [
@@ -23,10 +24,7 @@ export default function Footer() {
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div className="lg:col-span-1">
             <a href="#home" className="flex items-center gap-2.5">
-              <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-accent text-white text-sm font-bold">
-                LB
-              </div>
-              <span className="text-lg font-bold">Life Blossom</span>
+              <Logo variant="inline" iconSize={28} textClass="!text-white text-lg font-bold" subtitleClass="!text-white/60" />
             </a>
             <p className="mt-4 text-sm leading-relaxed text-white/60">
               Dedicated to providing compassionate, world-class healthcare to

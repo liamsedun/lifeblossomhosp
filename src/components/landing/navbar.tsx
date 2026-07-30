@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Menu, X, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Logo from "@/components/ui/logo";
 
 const navLinks = [
   { label: "Home", href: "#home" },
@@ -32,17 +33,15 @@ export default function Navbar() {
     >
       <div className="mx-auto max-w-7xl flex items-center justify-between px-5 h-16 md:h-20">
         <a href="#home" className="flex items-center gap-2.5">
-          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary text-white text-sm font-bold">
-            LB
-          </div>
-          <span
-            className={cn(
+          <Logo
+            variant="inline"
+            iconSize={26}
+            hideSubtitle
+            textClass={cn(
               "text-lg md:text-xl font-bold tracking-tight transition-colors",
               scrolled ? "text-primary" : "text-white"
             )}
-          >
-            Life Blossom
-          </span>
+          />
         </a>
 
         <nav className="hidden md:flex items-center gap-8">
@@ -59,7 +58,7 @@ export default function Navbar() {
             </a>
           ))}
           <a
-            href="#book"
+            href="/login"
             className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-primary-dark active:scale-[0.97]"
           >
             <Calendar size={16} />
@@ -99,7 +98,7 @@ export default function Navbar() {
             </a>
           ))}
           <a
-            href="#book"
+            href="/login"
             onClick={() => setOpen(false)}
             className="mt-2 inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-white transition-all hover:bg-primary-dark"
           >

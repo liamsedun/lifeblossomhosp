@@ -1,57 +1,116 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
+/**
+ * POST /api/auth/register
+ *
+ * Creates a new user in Supabase Auth and provisions their profile
+ * in the public.users table (plus patients/staff record).
+ *
+ * The service role key is used for profile creation since the new
+ * user's session is not yet established for RLS.
+ *
+ * Accepts:
+ *   { email, password, first_name, last_name, phone?, role? }
+ *   { phone, password, first_name, last_name, email?, role? }
+ */
 export async function POST(req: NextRequest) {
   try {
-    const { email, password, first_name, last_name, phone, role } = await req.json();
-    if (!email || !password || !first_name || !last_name) {
+    const { email, phone, password, first_name, last_name, role } = await req.json();
+
+    if ((!email && !phone) || !password || !first_name || !last_name) {
       return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
     }
 
-    const supabase = await createClient();
-    const { data: authData, error: authError } = await supabase.auth.signUp({ email, password });
-    if (authError) {
-      return NextResponse.json({ success: false, error: authError.message }, { status: 400 });
+    const targetRole = role || "patient";
+
+    // 1. Create auth user in Supabase Auth
+    const supabase = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+
+    let authUserId: string;
+    if (email) {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+      if (!data.user) return NextResponse.json({ success: false, error: "Failed to create auth user" }, { status: 500 });
+      authUserId = data.user.id;
+    } else {
+      const { data, error } = await supabase.auth.signUp({ phone, password });
+      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+      if (!data.user) return NextResponse.json({ success: false, error: "Failed to create auth user" }, { status: 500 });
+      authUserId = data.user.id;
     }
 
+    // 2. Create profile in public.users (service role — no RLS bypass, just
+    //    the only way to write during sign-up before session is established)
     const orgId = "a0000000-0000-0000-0000-000000000001";
+    const svc = createServiceClient();
 
-    const serviceClient = createServiceClient();
-    const { data: user, error: userError } = await serviceClient
+    const { data: profile, error: profileError } = await svc
       .from("users")
       .insert({
-        id: authData.user!.id,
+        id: authUserId,
         org_id: orgId,
-        email,
-        role: role || "patient",
+        email: email || null,
+        phone: phone || null,
+        role: targetRole,
         first_name,
         last_name,
-        phone,
+        password_hash: "", // managed by Supabase Auth
       })
-      .select("*, organization:organizations(*)")
+      .select("id, org_id, email, role, first_name, last_name, phone, is_active, created_at, organization:organizations(*)")
       .single();
 
-    if (userError) {
-      return NextResponse.json({ success: false, error: userError.message }, { status: 500 });
+    if (profileError) {
+      // Cleanup: try to delete the auth user if profile creation fails
+      await supabase.auth.admin.deleteUser(authUserId).catch(() => {});
+      return NextResponse.json({ success: false, error: profileError.message }, { status: 500 });
     }
 
-    if (role === "patient" || !role) {
-      const { data: count } = await serviceClient
+    // 3. Create specialty record based on role
+    if (targetRole === "patient") {
+      const { data: count } = await svc
         .from("patients")
         .select("id", { count: "exact", head: true })
         .eq("org_id", orgId);
 
       const patientNumber = `PT-${String((count?.length || 0) + 1).padStart(4, "0")}`;
 
-      await serviceClient.from("patients").insert({
+      const { error: ptError } = await svc.from("patients").insert({
         org_id: orgId,
-        user_id: authData.user!.id,
+        user_id: authUserId,
         patient_number: patientNumber,
       });
+
+      if (ptError) {
+        // Non-fatal: profile was created
+        console.error("Failed to create patient record:", ptError);
+      }
+    } else {
+      // Staff roles
+      const { data: count } = await svc
+        .from("staff")
+        .select("id", { count: "exact", head: true })
+        .eq("org_id", orgId);
+
+      const staffNumber = `STF-${String((count?.length || 0) + 1).padStart(4, "0")}`;
+
+      const { error: stError } = await svc.from("staff").insert({
+        org_id: orgId,
+        user_id: authUserId,
+        staff_number: staffNumber,
+        department: targetRole === "doctor" ? "General" : targetRole === "nurse" ? "Nursing" : "Administration",
+      });
+
+      if (stError) {
+        console.error("Failed to create staff record:", stError);
+      }
     }
 
-    return NextResponse.json({ success: true, data: user }, { status: 201 });
+    return NextResponse.json({ success: true, data: profile }, { status: 201 });
   } catch (err) {
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }

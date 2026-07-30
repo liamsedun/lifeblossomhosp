@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Mail, ArrowLeft, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { createClient } from "@/lib/supabase/client";
 import { Input } from "@/components/ui/input";
 import {
   Card,
@@ -17,10 +18,26 @@ import {
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email) setSent(true);
+    setError("");
+    if (!email) return;
+    setLoading(true);
+    try {
+      const supabase = createClient();
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (resetError) throw new Error(resetError.message);
+      setSent(true);
+    } catch (err: any) {
+      setError(err.message || "Failed to send reset link");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (sent) {
@@ -78,8 +95,11 @@ export default function ForgotPasswordPage() {
             </div>
           </div>
 
-          <Button type="submit" className="w-full" size="lg">
-            Send Reset Link
+          {error && (
+            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
+          )}
+          <Button type="submit" className="w-full" size="lg" disabled={loading}>
+            {loading ? "Sending..." : "Send Reset Link"}
           </Button>
         </form>
       </CardContent>

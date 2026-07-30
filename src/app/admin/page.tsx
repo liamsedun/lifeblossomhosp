@@ -78,7 +78,7 @@ export default function AdminDashboard() {
     if (!invoicesData) return 0;
     return invoicesData
       .filter((i) => i.status === "paid" || i.status === "partially_paid")
-      .reduce((sum, i) => sum + i.total, 0);
+      .reduce((sum, i) => sum + i.total_amount, 0);
   }, [invoicesData]);
 
   const appointmentsToday = useMemo(() => {
@@ -91,7 +91,7 @@ export default function AdminDashboard() {
     if (!invoicesData) return 0;
     return invoicesData
       .filter((i) => i.status === "pending" || i.status === "partially_paid")
-      .reduce((sum, i) => sum + i.total, 0);
+      .reduce((sum, i) => sum + i.total_amount, 0);
   }, [invoicesData]);
 
   const patientCount = patientsData?.length ?? 0;

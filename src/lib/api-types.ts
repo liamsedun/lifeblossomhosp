@@ -2,7 +2,7 @@
 // Database types — mirrors schema.sql exactly
 // ============================================================================
 
-export type UserRole = "patient" | "admin" | "doctor" | "nurse" | "accountant";
+export type UserRole = "patient" | "admin" | "doctor" | "nurse" | "accountant" | "super_admin";
 export type AppointmentStatus = "scheduled" | "confirmed" | "in_progress" | "completed" | "cancelled" | "no_show";
 export type AppointmentType = "in_person" | "video_call";
 export type RecordType = "diagnosis" | "lab_result" | "prescription" | "surgery_report" | "vaccination" | "imaging";
@@ -160,15 +160,20 @@ export interface Invoice {
   patient_id: string;
   appointment_id: string | null;
   invoice_number: string;
+  issue_date: string;
   subtotal: number;
-  tax: number;
-  total: number;
+  tax_amount: number;
+  discount_amount: number;
+  total_amount: number;
+  paid_amount: number;
   status: InvoiceStatus;
   due_date: string | null;
   notes: string | null;
+  created_by: string | null;
   created_at: string;
   updated_at: string;
   items?: InvoiceItem[];
+  payments?: Payment[];
   patient?: Patient;
 }
 
@@ -179,7 +184,7 @@ export interface InvoiceItem {
   description: string;
   quantity: number;
   unit_price: number;
-  total: number;
+  total_price: number;
   created_at: string;
 }
 
@@ -191,10 +196,11 @@ export interface Payment {
   patient_id: string;
   amount: number;
   payment_method: PaymentMethod;
-  reference_number: string | null;
+  transaction_ref: string | null;
   status: PaymentStatus;
   payment_date: string;
   notes: string | null;
+  created_by: string | null;
   created_at: string;
   updated_at: string;
   invoice?: Invoice;

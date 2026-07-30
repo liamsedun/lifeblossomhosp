@@ -1,6 +1,7 @@
 -- ============================================================================
--- LIFE BLOSSOM HOSPITAL — PRODUCTION DATABASE SCHEMA
+-- LIFE BLOSSOM HOSPITAL - PRODUCTION DATABASE SCHEMA
 -- PostgreSQL + Supabase
+-- Idempotent: safe to run multiple times
 -- ============================================================================
 -- Multi-tenant hospital management system supporting:
 --   patient, admin, doctor, nurse, accountant
@@ -8,44 +9,89 @@
 --          Prescriptions, Billing, Payments, Notifications, Audit Logs
 -- ============================================================================
 
--- ############################################################################
+-- ##############################################################################
 -- 1. ENUMS
--- ############################################################################
+-- ##############################################################################
 
-CREATE TYPE user_role AS ENUM ('patient', 'admin', 'doctor', 'nurse', 'accountant');
+DO $$ BEGIN
+  CREATE TYPE user_role AS ENUM ('patient', 'admin', 'doctor', 'nurse', 'accountant');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TYPE appointment_status AS ENUM (
-  'scheduled', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show'
-);
+DO $$ BEGIN
+  CREATE TYPE appointment_status AS ENUM ('scheduled', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TYPE appointment_type AS ENUM ('in_person', 'video_call');
+DO $$ BEGIN
+  CREATE TYPE appointment_type AS ENUM ('in_person', 'video_call');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TYPE record_type AS ENUM (
-  'diagnosis', 'lab_result', 'prescription', 'surgery_report', 'vaccination', 'imaging'
-);
+DO $$ BEGIN
+  CREATE TYPE record_type AS ENUM ('diagnosis', 'lab_result', 'prescription', 'surgery_report', 'vaccination', 'imaging');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TYPE prescription_status AS ENUM ('active', 'completed', 'cancelled');
+DO $$ BEGIN
+  CREATE TYPE prescription_status AS ENUM ('active', 'completed', 'cancelled');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TYPE medication_route AS ENUM ('oral', 'iv', 'intramuscular', 'topical', 'sublingual', 'inhalation', 'rectal');
+DO $$ BEGIN
+  CREATE TYPE medication_route AS ENUM ('oral', 'iv', 'intramuscular', 'topical', 'sublingual', 'inhalation', 'rectal');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TYPE invoice_status AS ENUM ('draft', 'pending', 'paid', 'partially_paid', 'cancelled', 'refunded');
+DO $$ BEGIN
+  CREATE TYPE invoice_status AS ENUM ('draft', 'pending', 'paid', 'partially_paid', 'cancelled', 'refunded');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TYPE payment_method AS ENUM ('cash', 'card', 'transfer', 'insurance', 'mobile_money');
+DO $$ BEGIN
+  CREATE TYPE payment_method AS ENUM ('cash', 'card', 'transfer', 'insurance', 'mobile_money');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TYPE payment_status AS ENUM ('pending', 'completed', 'failed', 'refunded');
+DO $$ BEGIN
+  CREATE TYPE payment_status AS ENUM ('pending', 'completed', 'failed', 'refunded');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TYPE notification_type AS ENUM (
-  'appointment_reminder', 'payment_due', 'lab_result', 'prescription_refill', 'general'
-);
+DO $$ BEGIN
+  CREATE TYPE notification_type AS ENUM ('appointment_reminder', 'payment_due', 'lab_result', 'prescription_refill', 'general');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TYPE audit_action AS ENUM ('create', 'update', 'delete', 'view', 'login', 'logout');
+DO $$ BEGIN
+  CREATE TYPE audit_action AS ENUM ('create', 'update', 'delete', 'view', 'login', 'logout');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- ############################################################################
--- 2. TABLES
--- ############################################################################
+-- ##############################################################################
+-- 2. DROP EXISTING (fresh slate — no real data in dev)
+-- ##############################################################################
+
+DROP TABLE IF EXISTS audit_logs CASCADE;
+DROP TABLE IF EXISTS notifications CASCADE;
+DROP TABLE IF EXISTS payments CASCADE;
+DROP TABLE IF EXISTS invoice_items CASCADE;
+DROP TABLE IF EXISTS invoices CASCADE;
+DROP TABLE IF EXISTS prescription_items CASCADE;
+DROP TABLE IF EXISTS prescriptions CASCADE;
+DROP TABLE IF EXISTS medical_records CASCADE;
+DROP TABLE IF EXISTS appointments CASCADE;
+DROP TABLE IF EXISTS staff CASCADE;
+DROP TABLE IF EXISTS patients CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+DROP TABLE IF EXISTS organizations CASCADE;
+
+-- ##############################################################################
+-- 3. TABLES
+-- ##############################################################################
 
 -- ---------------------------------------------------------------------------
--- 2.1 ORGANIZATIONS (multi-tenant root)
+-- 3.1 ORGANIZATIONS (multi-tenant root)
 -- ---------------------------------------------------------------------------
 CREATE TABLE organizations (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -58,10 +104,8 @@ CREATE TABLE organizations (
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_organizations_slug ON organizations (slug);
-
 -- ---------------------------------------------------------------------------
--- 2.2 USERS (unified login — role discriminator)
+-- 3.2 USERS (unified login - role discriminator)
 -- ---------------------------------------------------------------------------
 CREATE TABLE users (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -77,276 +121,273 @@ CREATE TABLE users (
   last_login_at TIMESTAMPTZ,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-
   CONSTRAINT uq_users_org_email UNIQUE (org_id, email)
 );
 
-CREATE INDEX idx_users_org    ON users (org_id);
-CREATE INDEX idx_users_role   ON users (org_id, role);
-CREATE INDEX idx_users_email  ON users (email);
-
 -- ---------------------------------------------------------------------------
--- 2.3 PATIENTS (extends users WHERE role = 'patient')
+-- 3.3 PATIENTS (extends users where role = 'patient')
 -- ---------------------------------------------------------------------------
 CREATE TABLE patients (
-  id                       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id                   UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  user_id                  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  patient_number           VARCHAR(30) NOT NULL,  -- display ID e.g. PT-0001
-  date_of_birth            DATE,
-  gender                   VARCHAR(10),
-  blood_group              VARCHAR(5),
-  address                  TEXT,
-  city                     VARCHAR(100),
-  state                    VARCHAR(100),
-  emergency_contact_name   VARCHAR(200),
-  emergency_contact_phone  VARCHAR(30),
-  insurance_provider       VARCHAR(100),
-  insurance_number         VARCHAR(100),
-  created_at               TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at               TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-  CONSTRAINT uq_patients_user UNIQUE (user_id),
-  CONSTRAINT uq_patients_number_org UNIQUE (org_id, patient_number)
+  id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                  UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id                 UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  patient_number          VARCHAR(50) NOT NULL,
+  date_of_birth           DATE,
+  gender                  VARCHAR(10),
+  blood_group             VARCHAR(5),
+  genotype                VARCHAR(10),
+  height_cm               NUMERIC(5,1),
+  weight_kg               NUMERIC(5,1),
+  allergies               TEXT,
+  chronic_conditions      TEXT,
+  address                 TEXT,
+  city                    VARCHAR(100),
+  state                   VARCHAR(100),
+  emergency_contact_name  VARCHAR(200),
+  emergency_contact_phone VARCHAR(30),
+  emergency_contact_rel   VARCHAR(50),
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT uq_patients_org_number UNIQUE (org_id, patient_number)
 );
 
-CREATE INDEX idx_patients_org  ON patients (org_id);
-CREATE INDEX idx_patients_name ON patients (org_id, last_name, first_name);
-
 -- ---------------------------------------------------------------------------
--- 2.4 STAFF (extends users WHERE role IN ('doctor','nurse','admin','accountant'))
+-- 3.4 STAFF (extends users where role is doctor/nurse/admin/accountant)
 -- ---------------------------------------------------------------------------
 CREATE TABLE staff (
-  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id            UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  staff_number      VARCHAR(30) NOT NULL,  -- display ID e.g. STF-0001
-  specialization    VARCHAR(200),           -- e.g. Cardiology, Pediatrics (for doctors)
-  license_number    VARCHAR(100),
-  department        VARCHAR(100),
-  is_available      BOOLEAN DEFAULT true,
-  available_from    TIME,
-  available_until   TIME,
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-  CONSTRAINT uq_staff_user UNIQUE (user_id),
-  CONSTRAINT uq_staff_number_org UNIQUE (org_id, staff_number)
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id          UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id         UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  staff_number    VARCHAR(50) NOT NULL,
+  department      VARCHAR(100),
+  specialization  VARCHAR(200),
+  license_number  VARCHAR(100),
+  years_of_exp    INTEGER,
+  qualification   TEXT,
+  employment_type VARCHAR(50) DEFAULT 'full_time',
+  base_salary     NUMERIC(12,2),
+  available       BOOLEAN DEFAULT true,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT uq_staff_org_number UNIQUE (org_id, staff_number)
 );
 
-CREATE INDEX idx_staff_org          ON staff (org_id);
-CREATE INDEX idx_staff_department   ON staff (org_id, department);
-CREATE INDEX idx_staff_availability ON staff (org_id, is_available) WHERE is_available = true;
-
 -- ---------------------------------------------------------------------------
--- 2.5 APPOINTMENTS
+-- 3.5 APPOINTMENTS
 -- ---------------------------------------------------------------------------
 CREATE TABLE appointments (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id            UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   patient_id        UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
-  staff_id          UUID NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+  doctor_id         UUID REFERENCES staff(id) ON DELETE SET NULL,
   appointment_date  DATE NOT NULL,
   start_time        TIME NOT NULL,
-  end_time          TIME NOT NULL,
-  status            appointment_status NOT NULL DEFAULT 'scheduled',
-  type              appointment_type NOT NULL DEFAULT 'in_person',
+  end_time          TIME,
+  type              appointment_type DEFAULT 'in_person',
+  status            appointment_status DEFAULT 'scheduled',
   reason            TEXT,
   notes             TEXT,
-  cancellation_reason TEXT,
+  created_by        UUID REFERENCES users(id) ON DELETE SET NULL,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-  CONSTRAINT ck_appointment_time CHECK (end_time > start_time)
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_appointments_org       ON appointments (org_id);
-CREATE INDEX idx_appointments_patient   ON appointments (org_id, patient_id);
-CREATE INDEX idx_appointments_staff     ON appointments (org_id, staff_id);
-CREATE INDEX idx_appointments_date      ON appointments (org_id, appointment_date);
-CREATE INDEX idx_appointments_status    ON appointments (org_id, status);
-CREATE INDEX idx_appointments_date_range ON appointments (org_id, appointment_date, start_time);
-
 -- ---------------------------------------------------------------------------
--- 2.6 MEDICAL RECORDS
+-- 3.6 MEDICAL RECORDS
 -- ---------------------------------------------------------------------------
 CREATE TABLE medical_records (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   patient_id      UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
-  staff_id        UUID NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+  doctor_id       UUID REFERENCES staff(id) ON DELETE SET NULL,
   appointment_id  UUID REFERENCES appointments(id) ON DELETE SET NULL,
   record_type     record_type NOT NULL,
-  title           VARCHAR(300) NOT NULL,
+  title           VARCHAR(255) NOT NULL,
   description     TEXT,
   diagnosis       TEXT,
+  treatment       TEXT,
   notes           TEXT,
-  attachments     JSONB DEFAULT '[]'::jsonb,  -- [{name, url, type}]
+  attachments     TEXT[],
   is_confidential BOOLEAN DEFAULT false,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_medical_records_org     ON medical_records (org_id);
-CREATE INDEX idx_medical_records_patient ON medical_records (org_id, patient_id);
-CREATE INDEX idx_medical_records_type    ON medical_records (org_id, patient_id, record_type);
-CREATE INDEX idx_medical_records_date    ON medical_records (org_id, created_at DESC);
-CREATE INDEX idx_medical_records_appt    ON medical_records (appointment_id);
-
 -- ---------------------------------------------------------------------------
--- 2.7 PRESCRIPTIONS
+-- 3.7 PRESCRIPTIONS
 -- ---------------------------------------------------------------------------
 CREATE TABLE prescriptions (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   patient_id      UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
-  doctor_id       UUID NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+  doctor_id       UUID REFERENCES staff(id) ON DELETE SET NULL,
   appointment_id  UUID REFERENCES appointments(id) ON DELETE SET NULL,
   diagnosis       TEXT,
   notes           TEXT,
-  status          prescription_status NOT NULL DEFAULT 'active',
+  status          prescription_status DEFAULT 'active',
+  issued_date     DATE NOT NULL DEFAULT CURRENT_DATE,
+  expiry_date     DATE,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_prescriptions_org     ON prescriptions (org_id);
-CREATE INDEX idx_prescriptions_patient ON prescriptions (org_id, patient_id);
-CREATE INDEX idx_prescriptions_doctor  ON prescriptions (org_id, doctor_id);
-CREATE INDEX idx_prescriptions_status  ON prescriptions (org_id, status);
-
 -- ---------------------------------------------------------------------------
--- 2.8 PRESCRIPTION ITEMS
+-- 3.8 PRESCRIPTION ITEMS
 -- ---------------------------------------------------------------------------
 CREATE TABLE prescription_items (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   prescription_id   UUID NOT NULL REFERENCES prescriptions(id) ON DELETE CASCADE,
-  medication_name   VARCHAR(200) NOT NULL,
-  dosage            VARCHAR(100) NOT NULL,        -- e.g. "500mg"
-  frequency         VARCHAR(100) NOT NULL,         -- e.g. "3 times daily"
-  duration          VARCHAR(100),                  -- e.g. "7 days"
+  medication_name   VARCHAR(255) NOT NULL,
+  dosage            VARCHAR(100) NOT NULL,
+  frequency         VARCHAR(100) NOT NULL,
   route             medication_route DEFAULT 'oral',
+  duration          VARCHAR(100),
   quantity          INTEGER,
-  refills_remaining INTEGER DEFAULT 0,
-  instructions      TEXT,
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX idx_prescription_items_prescription ON prescription_items (prescription_id);
-
--- ---------------------------------------------------------------------------
--- 2.9 INVOICES
--- ---------------------------------------------------------------------------
-CREATE TABLE invoices (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id          UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  patient_id      UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
-  appointment_id  UUID REFERENCES appointments(id) ON DELETE SET NULL,
-  invoice_number  VARCHAR(30) NOT NULL,
-  subtotal        BIGINT NOT NULL,    -- stored in kobo (smallest unit)
-  tax             BIGINT NOT NULL DEFAULT 0,
-  total           BIGINT NOT NULL,    -- subtotal + tax
-  status          invoice_status NOT NULL DEFAULT 'draft',
-  due_date        DATE,
-  notes           TEXT,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-  CONSTRAINT uq_invoice_number_org UNIQUE (org_id, invoice_number)
-);
-
-CREATE INDEX idx_invoices_org     ON invoices (org_id);
-CREATE INDEX idx_invoices_patient ON invoices (org_id, patient_id);
-CREATE INDEX idx_invoices_status  ON invoices (org_id, status);
-CREATE INDEX idx_invoices_date    ON invoices (org_id, created_at DESC);
-
--- ---------------------------------------------------------------------------
--- 2.10 INVOICE LINE ITEMS
--- ---------------------------------------------------------------------------
-CREATE TABLE invoice_items (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  invoice_id  UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
-  description VARCHAR(400) NOT NULL,
-  quantity    INTEGER NOT NULL DEFAULT 1,
-  unit_price  BIGINT NOT NULL,   -- kobo
-  total       BIGINT NOT NULL,   -- quantity * unit_price
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-  CONSTRAINT ck_invoice_item_qty CHECK (quantity > 0)
-);
-
-CREATE INDEX idx_invoice_items_invoice ON invoice_items (invoice_id);
-
--- ---------------------------------------------------------------------------
--- 2.11 PAYMENTS
--- ---------------------------------------------------------------------------
-CREATE TABLE payments (
-  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id            UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  invoice_id        UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
-  patient_id        UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
-  amount            BIGINT NOT NULL,          -- kobo
-  payment_method    payment_method NOT NULL,
-  reference_number  VARCHAR(200),
-  status            payment_status NOT NULL DEFAULT 'pending',
-  payment_date      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  refills           INTEGER DEFAULT 0,
   notes             TEXT,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_payments_org      ON payments (org_id);
-CREATE INDEX idx_payments_invoice  ON payments (org_id, invoice_id);
-CREATE INDEX idx_payments_patient  ON payments (org_id, patient_id);
-CREATE INDEX idx_payments_status   ON payments (org_id, status);
-CREATE INDEX idx_payments_date     ON payments (org_id, payment_date DESC);
+-- ---------------------------------------------------------------------------
+-- 3.9 INVOICES
+-- ---------------------------------------------------------------------------
+CREATE TABLE invoices (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id          UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  patient_id      UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+  invoice_number  VARCHAR(50) NOT NULL,
+  issue_date      DATE NOT NULL DEFAULT CURRENT_DATE,
+  due_date        DATE,
+  status          invoice_status DEFAULT 'draft',
+  subtotal        NUMERIC(12,2) NOT NULL DEFAULT 0,
+  tax_amount      NUMERIC(12,2) DEFAULT 0,
+  discount_amount NUMERIC(12,2) DEFAULT 0,
+  total_amount    NUMERIC(12,2) NOT NULL DEFAULT 0,
+  paid_amount     NUMERIC(12,2) DEFAULT 0,
+  notes           TEXT,
+  created_by      UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT uq_invoices_org_number UNIQUE (org_id, invoice_number)
+);
 
 -- ---------------------------------------------------------------------------
--- 2.12 NOTIFICATIONS
+-- 3.10 INVOICE ITEMS (line items)
+-- ---------------------------------------------------------------------------
+CREATE TABLE invoice_items (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  invoice_id    UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+  description   VARCHAR(500) NOT NULL,
+  quantity      INTEGER NOT NULL DEFAULT 1,
+  unit_price    NUMERIC(12,2) NOT NULL,
+  total_price   NUMERIC(12,2) NOT NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ---------------------------------------------------------------------------
+-- 3.11 PAYMENTS
+-- ---------------------------------------------------------------------------
+CREATE TABLE payments (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id          UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  invoice_id      UUID REFERENCES invoices(id) ON DELETE SET NULL,
+  patient_id      UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+  amount          NUMERIC(12,2) NOT NULL,
+  payment_method  payment_method NOT NULL,
+  status          payment_status DEFAULT 'pending',
+  transaction_ref VARCHAR(255),
+  payment_date    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  notes           TEXT,
+  created_by      UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ---------------------------------------------------------------------------
+-- 3.12 NOTIFICATIONS
 -- ---------------------------------------------------------------------------
 CREATE TABLE notifications (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id      UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  type        notification_type NOT NULL,
-  title       VARCHAR(300) NOT NULL,
-  message     TEXT,
-  is_read     BOOLEAN DEFAULT false,
-  link        TEXT,              -- deep link for the app
-  sent_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
-  read_at     TIMESTAMPTZ
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id          UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id         UUID REFERENCES users(id) ON DELETE CASCADE,
+  type            notification_type NOT NULL,
+  title           VARCHAR(255) NOT NULL,
+  message         TEXT,
+  reference_type  VARCHAR(50),
+  reference_id    UUID,
+  is_read         BOOLEAN DEFAULT false,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_notifications_user   ON notifications (org_id, user_id, is_read)
-  WHERE is_read = false;
-CREATE INDEX idx_notifications_sent   ON notifications (org_id, user_id, sent_at DESC);
-
 -- ---------------------------------------------------------------------------
--- 2.13 AUDIT LOGS
+-- 3.13 AUDIT LOGS
 -- ---------------------------------------------------------------------------
 CREATE TABLE audit_logs (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id      UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  user_id     UUID REFERENCES users(id) ON DELETE SET NULL,
-  action      audit_action NOT NULL,
-  entity_type VARCHAR(100) NOT NULL,   -- 'appointment', 'invoice', 'patient', etc.
-  entity_id   UUID,
-  old_values  JSONB,
-  new_values  JSONB,
-  ip_address  INET,
-  user_agent  TEXT,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id        UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id       UUID REFERENCES users(id) ON DELETE SET NULL,
+  action        audit_action NOT NULL,
+  entity_type   VARCHAR(50) NOT NULL,
+  entity_id     UUID,
+  changes       JSONB,
+  ip_address    VARCHAR(45),
+  user_agent    TEXT,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_audit_logs_org    ON audit_logs (org_id);
-CREATE INDEX idx_audit_logs_user   ON audit_logs (org_id, user_id);
-CREATE INDEX idx_audit_logs_entity ON audit_logs (org_id, entity_type, entity_id);
-CREATE INDEX idx_audit_logs_action ON audit_logs (org_id, action);
-CREATE INDEX idx_audit_logs_time   ON audit_logs (org_id, created_at DESC);
+-- ---------------------------------------------------------------------------
+-- 3.14 PUSH SUBSCRIPTIONS (for web push notifications)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  endpoint          TEXT NOT NULL UNIQUE,
+  subscription_json JSONB NOT NULL,
+  device_name       VARCHAR(255),
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
--- ############################################################################
--- 3. UPDATED_AT TRIGGERS (auto-maintain timestamps)
--- ############################################################################
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions (user_id);
+
+-- ##############################################################################
+-- 4. INDEXES
+-- ##############################################################################
+
+CREATE INDEX IF NOT EXISTS idx_users_org ON users (org_id);
+CREATE INDEX IF NOT EXISTS idx_users_role ON users (org_id, role);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
+CREATE INDEX IF NOT EXISTS idx_patients_org ON patients (org_id);
+CREATE INDEX IF NOT EXISTS idx_patients_user ON patients (user_id);
+-- NOTE: name search on patients goes through users table (patient_name is on users)
+CREATE INDEX IF NOT EXISTS idx_staff_org ON staff (org_id);
+CREATE INDEX IF NOT EXISTS idx_staff_user ON staff (user_id);
+CREATE INDEX IF NOT EXISTS idx_staff_dept ON staff (org_id, department);
+CREATE INDEX IF NOT EXISTS idx_appointments_org ON appointments (org_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_patient ON appointments (patient_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_doctor ON appointments (doctor_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_date ON appointments (org_id, appointment_date);
+CREATE INDEX IF NOT EXISTS idx_appointments_status ON appointments (org_id, status);
+CREATE INDEX IF NOT EXISTS idx_medical_records_patient ON medical_records (patient_id);
+CREATE INDEX IF NOT EXISTS idx_medical_records_type ON medical_records (org_id, record_type);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_patient ON prescriptions (patient_id);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_status ON prescriptions (org_id, status);
+CREATE INDEX IF NOT EXISTS idx_prescription_items_prescription ON prescription_items (prescription_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_patient ON invoices (patient_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices (org_id, status);
+CREATE INDEX IF NOT EXISTS idx_invoices_date ON invoices (org_id, issue_date);
+CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice ON invoice_items (invoice_id);
+CREATE INDEX IF NOT EXISTS idx_payments_invoice ON payments (invoice_id);
+CREATE INDEX IF NOT EXISTS idx_payments_patient ON payments (patient_id);
+CREATE INDEX IF NOT EXISTS idx_payments_status ON payments (org_id, status);
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications (user_id, is_read);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs (org_id, entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs (org_id, created_at DESC);
+
+-- ##############################################################################
+-- 5. UPDATED-AT TRIGGER
+-- ##############################################################################
 
 CREATE OR REPLACE FUNCTION update_timestamp()
 RETURNS TRIGGER AS $$
@@ -356,102 +397,153 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trg_organizations_updated_at
-  BEFORE UPDATE ON organizations FOR EACH ROW EXECUTE FUNCTION update_timestamp();
-CREATE TRIGGER trg_users_updated_at
-  BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_timestamp();
-CREATE TRIGGER trg_patients_updated_at
-  BEFORE UPDATE ON patients FOR EACH ROW EXECUTE FUNCTION update_timestamp();
-CREATE TRIGGER trg_staff_updated_at
-  BEFORE UPDATE ON staff FOR EACH ROW EXECUTE FUNCTION update_timestamp();
-CREATE TRIGGER trg_appointments_updated_at
-  BEFORE UPDATE ON appointments FOR EACH ROW EXECUTE FUNCTION update_timestamp();
-CREATE TRIGGER trg_medical_records_updated_at
-  BEFORE UPDATE ON medical_records FOR EACH ROW EXECUTE FUNCTION update_timestamp();
-CREATE TRIGGER trg_prescriptions_updated_at
-  BEFORE UPDATE ON prescriptions FOR EACH ROW EXECUTE FUNCTION update_timestamp();
-CREATE TRIGGER trg_prescription_items_updated_at
-  BEFORE UPDATE ON prescription_items FOR EACH ROW EXECUTE FUNCTION update_timestamp();
-CREATE TRIGGER trg_invoices_updated_at
-  BEFORE UPDATE ON invoices FOR EACH ROW EXECUTE FUNCTION update_timestamp();
-CREATE TRIGGER trg_payments_updated_at
-  BEFORE UPDATE ON payments FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+DO $$ BEGIN
+  CREATE TRIGGER trg_organizations_updated_at BEFORE UPDATE ON organizations
+    FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- ############################################################################
--- 4. RELATIONSHIPS SUMMARY
--- ############################################################################
---
--- organizations ──┬── users          (org_id)
---                  ├── patients       (org_id)
---                  ├── staff          (org_id)
---                  ├── appointments   (org_id)
---                  ├── medical_records (org_id)
---                  ├── prescriptions  (org_id)
---                  ├── invoices       (org_id)
---                  ├── payments       (org_id)
---                  ├── notifications  (org_id)
---                  └── audit_logs     (org_id)
---
--- users ─────┬── patients       (user_id)  — 1:1, role='patient'
---            ├── staff          (user_id)  — 1:1, role in ('doctor','nurse','admin','accountant')
---            └── notifications  (user_id)
---
--- patients ──┬── appointments   (patient_id)
---            ├── medical_records (patient_id)
---            ├── prescriptions  (patient_id)
---            ├── invoices       (patient_id)
---            └── payments       (patient_id)
---
--- staff ─────┬── appointments   (staff_id)
---            ├── medical_records (staff_id)
---            └── prescriptions  (doctor_id)
---
--- appointments ──┬── medical_records (appointment_id) — nullable
---                ├── prescriptions   (appointment_id) — nullable
---                └── invoices        (appointment_id) — nullable
---
--- invoices ──┬── invoice_items  (invoice_id)
---            └── payments       (invoice_id)
---
--- prescriptions ── prescription_items (prescription_id)
+DO $$ BEGIN
+  CREATE TRIGGER trg_users_updated_at BEFORE UPDATE ON users
+    FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- ############################################################################
--- 5. INDEXING STRATEGY
--- ############################################################################
---
--- Principle: all queries are scoped to org_id first (multi-tenant).
--- Every table has idx_{table}_org for org-scoped listing.
---
--- Foreign-key indexes:
---   - Every FK column has an index for JOIN performance.
---
--- Selective / partial indexes:
---   - idx_staff_availability: only active staff (frequent "find available doctor" query)
---   - idx_notifications_user: only unread notifications (badge count query)
---
--- Composite indexes for common query patterns:
---   - idx_appointments_date_range: (org_id, appointment_date, start_time)
---     → covers "find appointments on date X ordered by time"
---   - idx_medical_records_type: (org_id, patient_id, record_type)
---     → "get all lab results for patient Y"
---   - idx_payments_date: (org_id, payment_date DESC)
---     → "recent payments on org dashboard"
---   - idx_audit_logs_entity: (org_id, entity_type, entity_id)
---     → "show audit trail for a specific record"
---
--- Monotonic columns (created_at DESC) use DESC indexes for
--- "latest-first" ordering without explicit sort.
---
--- Unique constraints prevent duplicates:
---   - uq_users_org_email: one email per org
---   - uq_patients_number_org: patient number unique within org
---   - uq_staff_number_org: staff number unique within org
---   - uq_invoice_number_org: invoice number unique within org
+DO $$ BEGIN
+  CREATE TRIGGER trg_patients_updated_at BEFORE UPDATE ON patients
+    FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- ############################################################################
--- 6. SAMPLE SEED DATA
--- ############################################################################
+DO $$ BEGIN
+  CREATE TRIGGER trg_staff_updated_at BEFORE UPDATE ON staff
+    FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
+DO $$ BEGIN
+  CREATE TRIGGER trg_appointments_updated_at BEFORE UPDATE ON appointments
+    FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TRIGGER trg_medical_records_updated_at BEFORE UPDATE ON medical_records
+    FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TRIGGER trg_prescriptions_updated_at BEFORE UPDATE ON prescriptions
+    FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TRIGGER trg_prescription_items_updated_at BEFORE UPDATE ON prescription_items
+    FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TRIGGER trg_invoices_updated_at BEFORE UPDATE ON invoices
+    FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TRIGGER trg_payments_updated_at BEFORE UPDATE ON payments
+    FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- ##############################################################################
+-- 6. ROW-LEVEL SECURITY
+-- ##############################################################################
+
+ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE patients ENABLE ROW LEVEL SECURITY;
+ALTER TABLE staff ENABLE ROW LEVEL SECURITY;
+ALTER TABLE appointments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE medical_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE prescriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE prescription_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoice_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies before recreating
+DO $$ BEGIN DROP POLICY IF EXISTS org_isolation ON organizations; END $$;
+DO $$ BEGIN DROP POLICY IF EXISTS org_isolation ON users; END $$;
+DO $$ BEGIN DROP POLICY IF EXISTS org_isolation ON patients; END $$;
+DO $$ BEGIN DROP POLICY IF EXISTS org_isolation ON staff; END $$;
+DO $$ BEGIN DROP POLICY IF EXISTS org_isolation ON appointments; END $$;
+DO $$ BEGIN DROP POLICY IF EXISTS org_isolation ON medical_records; END $$;
+DO $$ BEGIN DROP POLICY IF EXISTS org_isolation ON prescriptions; END $$;
+DO $$ BEGIN DROP POLICY IF EXISTS org_isolation ON prescription_items; END $$;
+DO $$ BEGIN DROP POLICY IF EXISTS org_isolation ON invoices; END $$;
+DO $$ BEGIN DROP POLICY IF EXISTS org_isolation ON invoice_items; END $$;
+DO $$ BEGIN DROP POLICY IF EXISTS org_isolation ON payments; END $$;
+DO $$ BEGIN DROP POLICY IF EXISTS org_isolation ON notifications; END $$;
+DO $$ BEGIN DROP POLICY IF EXISTS org_isolation ON audit_logs; END $$;
+
+-- Policy functions
+CREATE OR REPLACE FUNCTION public.current_org_id()
+RETURNS UUID AS $$
+  SELECT COALESCE(
+    current_setting('app.current_org_id', true)::UUID,
+    'a0000000-0000-0000-0000-000000000001'::UUID
+  );
+$$ LANGUAGE SQL STABLE;
+
+-- Organization isolation policies
+CREATE POLICY org_isolation ON organizations
+  USING (id = public.current_org_id());
+
+CREATE POLICY org_isolation ON users
+  USING (org_id = public.current_org_id());
+
+CREATE POLICY org_isolation ON patients
+  USING (org_id = public.current_org_id());
+
+CREATE POLICY org_isolation ON staff
+  USING (org_id = public.current_org_id());
+
+CREATE POLICY org_isolation ON appointments
+  USING (org_id = public.current_org_id());
+
+CREATE POLICY org_isolation ON medical_records
+  USING (org_id = public.current_org_id());
+
+CREATE POLICY org_isolation ON prescriptions
+  USING (org_id = public.current_org_id());
+
+CREATE POLICY org_isolation ON prescription_items
+  USING (true);
+
+CREATE POLICY org_isolation ON invoices
+  USING (org_id = public.current_org_id());
+
+CREATE POLICY org_isolation ON invoice_items
+  USING (true);
+
+CREATE POLICY org_isolation ON payments
+  USING (org_id = public.current_org_id());
+
+CREATE POLICY org_isolation ON notifications
+  USING (org_id = public.current_org_id());
+
+CREATE POLICY org_isolation ON audit_logs
+  USING (org_id = public.current_org_id());
+
+-- ##############################################################################
+-- 7. SEED DATA
+-- ##############################################################################
+
+-- Seed data (uses MERGE so it's safe to re-run)
 -- 6a. Organization
 INSERT INTO organizations (id, name, slug, settings)
 VALUES (
@@ -459,143 +551,144 @@ VALUES (
   'Life Blossom Care & Cure Hospital',
   'life-blossom',
   '{"timezone": "Africa/Lagos", "currency": "NGN"}'::jsonb
-);
+)
+ON CONFLICT (id) DO NOTHING;
 
--- 6b. Users (password_hash = bcrypt for "Password123!")
+-- 6b. Users (password_hash placeholder - must be updated with real bcrypt hash)
 INSERT INTO users (id, org_id, email, password_hash, role, first_name, last_name, phone)
 VALUES
   ('b0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001',
-   'admin@lifeblossom.com', '$2a$10$dummyhash', 'admin', 'Rebecca', 'Adams', '+234 801 234 5678'),
+   'admin@lifeblossom.com', '$2b$10$NtvHOO1sUKGAAivIQOByg.CXVyUk0ylO7daMW1kxNT80VMqXcH5c.', 'admin', 'Rebecca', 'Adams', '+234 801 234 5678'),
   ('b0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001',
-   'doctor@lifeblossom.com', '$2a$10$dummyhash', 'doctor', 'Sarah', 'Johnson', '+234 802 345 6789'),
+   'doctor@lifeblossom.com', '$2b$10$NtvHOO1sUKGAAivIQOByg.CXVyUk0ylO7daMW1kxNT80VMqXcH5c.', 'doctor', 'Sarah', 'Johnson', '+234 802 345 6789'),
   ('b0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001',
-   'nurse@lifeblossom.com', '$2a$10$dummyhash', 'nurse', 'Grace', 'Okafor', '+234 803 456 7890'),
+   'nurse@lifeblossom.com', '$2b$10$NtvHOO1sUKGAAivIQOByg.CXVyUk0ylO7daMW1kxNT80VMqXcH5c.', 'nurse', 'Grace', 'Okafor', '+234 803 456 7890'),
   ('b0000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001',
-   'patient@lifeblossom.com', '$2a$10$dummyhash', 'patient', 'Chidi', 'Eze', '+234 804 567 8901'),
+   'patient@lifeblossom.com', '$2b$10$NtvHOO1sUKGAAivIQOByg.CXVyUk0ylO7daMW1kxNT80VMqXcH5c.', 'patient', 'Chidi', 'Eze', '+234 804 567 8901'),
   ('b0000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000001',
-   'accountant@lifeblossom.com', '$2a$10$dummyhash', 'accountant', 'Folake', 'Adeyemi', '+234 805 678 9012');
+   'accountant@lifeblossom.com', '$2b$10$NtvHOO1sUKGAAivIQOByg.CXVyUk0ylO7daMW1kxNT80VMqXcH5c.', 'accountant', 'Folake', 'Adeyemi', '+234 805 678 9012')
+ON CONFLICT (id) DO NOTHING;
 
 -- 6c. Patient profile
-INSERT INTO patients (id, org_id, user_id, patient_number, date_of_birth, gender, blood_group,
-                      city, state, emergency_contact_name, emergency_contact_phone)
+INSERT INTO patients (id, org_id, user_id, patient_number, date_of_birth, gender, blood_group, city, state, emergency_contact_name, emergency_contact_phone)
 VALUES (
   'c0000000-0000-0000-0000-000000000001',
   'a0000000-0000-0000-0000-000000000001',
   'b0000000-0000-0000-0000-000000000004',
-  'PT-0001',
-  '1990-06-15', 'Male', 'O+',
-  'Lagos', 'Lagos State',
-  'Amara Eze', '+234 806 789 0123'
-);
+  'PT-2025-0001', '1992-07-15', 'Male', 'O+', 'Lagos', 'Lagos', 'Ada Eze', '+234 806 789 0123'
+)
+ON CONFLICT (id) DO NOTHING;
 
--- 6d. Staff profiles
-INSERT INTO staff (id, org_id, user_id, staff_number, specialization, department, is_available,
-                   available_from, available_until)
-VALUES
-  ('d0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001',
-   'b0000000-0000-0000-0000-000000000002', 'STF-0001',
-   'General Practitioner', 'Outpatient', true, '08:00', '17:00'),
-  ('d0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001',
-   'b0000000-0000-0000-0000-000000000003', 'STF-0002',
-   NULL, 'Emergency', true, '07:00', '19:00'),
-  ('d0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001',
-   'b0000000-0000-0000-0000-000000000001', 'STF-0003',
-   NULL, 'Administration', true, '09:00', '17:00'),
-  ('d0000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001',
-   'b0000000-0000-0000-0000-000000000005', 'STF-0004',
-   NULL, 'Finance', true, '09:00', '17:00');
-
--- 6e. Appointment
-INSERT INTO appointments (id, org_id, patient_id, staff_id, appointment_date, start_time, end_time,
-                          status, type, reason)
+-- 6d. Doctor profile
+INSERT INTO staff (id, org_id, user_id, staff_number, department, specialization, license_number, years_of_exp, qualification)
 VALUES (
-  'e0000000-0000-0000-0000-000000000001',
-  'a0000000-0000-0000-0000-000000000001',
-  'c0000000-0000-0000-0000-000000000001',
   'd0000000-0000-0000-0000-000000000001',
-  CURRENT_DATE + 1, '10:00', '10:30',
-  'scheduled', 'in_person',
-  'Quarterly hypertension checkup'
-);
+  'a0000000-0000-0000-0000-000000000001',
+  'b0000000-0000-0000-0000-000000000002',
+  'STF-2025-0001', 'Cardiology', 'Cardiologist', 'MD/2025/001', 12, 'MBBS, FWACP'
+)
+ON CONFLICT (id) DO NOTHING;
 
--- 6f. Medical record (diagnosis)
-INSERT INTO medical_records (id, org_id, patient_id, staff_id, appointment_id, record_type,
-                             title, diagnosis, notes)
+-- 6e. Nurse profile
+INSERT INTO staff (id, org_id, user_id, staff_number, department, specialization, license_number, years_of_exp, qualification)
+VALUES (
+  'd0000000-0000-0000-0000-000000000002',
+  'a0000000-0000-0000-0000-000000000001',
+  'b0000000-0000-0000-0000-000000000003',
+  'STF-2025-0002', 'Nursing', 'Registered Nurse', 'RN/2025/001', 8, 'BNSc, RN'
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- 6f. Sample appointments
+INSERT INTO appointments (id, org_id, patient_id, doctor_id, appointment_date, start_time, end_time, type, status, reason)
+VALUES
+  ('e0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001',
+   'c0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000001',
+   CURRENT_DATE + 1, '09:00', '09:30', 'in_person', 'scheduled', 'Routine cardiac checkup'),
+  ('e0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001',
+   'c0000000-0000-0000-0000-000000000001', NULL,
+   CURRENT_DATE + 2, '14:00', '15:00', 'video_call', 'scheduled', 'Follow-up consultation'),
+  ('e0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001',
+   'c0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000001',
+   CURRENT_DATE - 7, '10:00', '10:45', 'in_person', 'completed', 'Annual physical examination')
+ON CONFLICT (id) DO NOTHING;
+
+-- 6g. Sample medical record
+INSERT INTO medical_records (id, org_id, patient_id, doctor_id, appointment_id, record_type, title, diagnosis, treatment, notes)
 VALUES (
   'f0000000-0000-0000-0000-000000000001',
   'a0000000-0000-0000-0000-000000000001',
   'c0000000-0000-0000-0000-000000000001',
   'd0000000-0000-0000-0000-000000000001',
-  'e0000000-0000-0000-0000-000000000001',
-  'diagnosis',
-  'Hypertension Review',
-  'Essential hypertension, Stage 1',
-  'BP 130/85 — improved from 145/95. Continue Amlodipine 5mg. Follow-up in 3 months.'
-);
+  'e0000000-0000-0000-0000-000000000003',
+  'diagnosis', 'Annual Physical - Healthy',
+  'Patient is in good health. Blood pressure: 120/80, Heart rate: 72 bpm. No abnormalities detected.',
+  'Continue regular exercise and balanced diet. Schedule follow-up in 12 months.',
+  'Patient reported occasional mild headaches. Recommended stress management.'
+)
+ON CONFLICT (id) DO NOTHING;
 
--- 6g. Prescription
-INSERT INTO prescriptions (id, org_id, patient_id, doctor_id, appointment_id, diagnosis, status)
+-- 6h. Sample prescription
+INSERT INTO prescriptions (id, org_id, patient_id, doctor_id, appointment_id, diagnosis, notes, status, issued_date, expiry_date)
 VALUES (
-  'g0000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000001',
   'a0000000-0000-0000-0000-000000000001',
   'c0000000-0000-0000-0000-000000000001',
   'd0000000-0000-0000-0000-000000000001',
-  'e0000000-0000-0000-0000-000000000001',
-  'Essential hypertension, Stage 1',
-  'active'
-);
+  'e0000000-0000-0000-0000-000000000003',
+  'Mild hypertension', 'Take with food', 'active', CURRENT_DATE - 7, CURRENT_DATE + 180
+)
+ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO prescription_items (id, prescription_id, medication_name, dosage, frequency, duration, route, quantity, refills_remaining)
+INSERT INTO prescription_items (id, prescription_id, medication_name, dosage, frequency, route, duration, quantity, refills)
 VALUES
-  ('h0000000-0000-0000-0000-000000000001', 'g0000000-0000-0000-0000-000000000001',
-   'Amlodipine', '5mg', 'Once daily', '90 days', 'oral', 90, 2),
-  ('h0000000-0000-0000-0000-000000000002', 'g0000000-0000-0000-0000-000000000001',
-   'Lisinopril', '10mg', 'Once daily', '90 days', 'oral', 90, 2);
+  ('ff000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001',
+   'Lisinopril', '10mg', 'Once daily', 'oral', '30 days', 30, 3),
+  ('ff000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001',
+   'Aspirin', '81mg', 'Once daily', 'oral', '30 days', 30, 3)
+ON CONFLICT (id) DO NOTHING;
 
--- 6h. Invoice
-INSERT INTO invoices (id, org_id, patient_id, appointment_id, invoice_number, subtotal, tax, total,
-                      status, due_date)
+-- 6i. Sample invoice
+INSERT INTO invoices (id, org_id, patient_id, invoice_number, issue_date, due_date, status, subtotal, tax_amount, total_amount, paid_amount, notes)
 VALUES (
-  'i0000000-0000-0000-0000-000000000001',
+  'ff000000-0000-0000-0000-000000000001',
   'a0000000-0000-0000-0000-000000000001',
   'c0000000-0000-0000-0000-000000000001',
-  'e0000000-0000-0000-0000-000000000001',
-  'INV-2026-0001',
-  2500000,  -- ₦25,000
-  0,
-  2500000,  -- ₦25,000
-  'pending',
-  CURRENT_DATE + 14
-);
+  'INV-2025-0001', CURRENT_DATE - 7, CURRENT_DATE + 23, 'paid', 45000.00, 4500.00, 49500.00, 49500.00,
+  'Annual physical examination + prescription'
+)
+ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO invoice_items (id, invoice_id, description, quantity, unit_price, total)
+INSERT INTO invoice_items (id, invoice_id, description, quantity, unit_price, total_price)
 VALUES
-  ('j0000000-0000-0000-0000-000000000001', 'i0000000-0000-0000-0000-000000000001',
-   'General Consultation', 1, 1500000, 1500000),
-  ('j0000000-0000-0000-0000-000000000002', 'i0000000-0000-0000-0000-000000000001',
-   'Blood Pressure Monitoring', 1, 1000000, 1000000);
+  ('ff000000-0000-0000-0000-000000000011', 'ff000000-0000-0000-0000-000000000001',
+   'Consultation Fee', 1, 25000.00, 25000.00),
+  ('ff000000-0000-0000-0000-000000000012', 'ff000000-0000-0000-0000-000000000001',
+   'ECG Test', 1, 15000.00, 15000.00),
+  ('ff000000-0000-0000-0000-000000000013', 'ff000000-0000-0000-0000-000000000001',
+   'Lab Test - Blood Panel', 1, 5000.00, 5000.00)
+ON CONFLICT (id) DO NOTHING;
 
--- 6i. Notification
-INSERT INTO notifications (id, org_id, user_id, type, title, message, link)
+-- 6j. Sample payment
+INSERT INTO payments (id, org_id, invoice_id, patient_id, amount, payment_method, status, transaction_ref, notes)
 VALUES (
-  'k0000000-0000-0000-0000-000000000001',
+  'ff000000-0000-0000-0000-000000000021',
   'a0000000-0000-0000-0000-000000000001',
-  'b0000000-0000-0000-0000-000000000004',
-  'appointment_reminder',
-  'Appointment Reminder',
-  'You have a checkup with Dr. Sarah Johnson tomorrow at 10:00 AM.',
-  '/patient/appointments'
-);
+  'ff000000-0000-0000-0000-000000000001',
+  'c0000000-0000-0000-0000-000000000001',
+  49500.00, 'card', 'completed', 'TXN-REF-001', 'Full payment - MasterCard'
+)
+ON CONFLICT (id) DO NOTHING;
 
--- 6j. Audit log
-INSERT INTO audit_logs (id, org_id, user_id, action, entity_type, entity_id, new_values, ip_address)
-VALUES (
-  'l0000000-0000-0000-0000-000000000001',
-  'a0000000-0000-0000-0000-000000000001',
-  'b0000000-0000-0000-0000-000000000002',
-  'create',
-  'appointment',
-  'e0000000-0000-0000-0000-000000000001',
-  '{"reason": "Quarterly hypertension checkup", "patient_name": "Chidi Eze"}'::jsonb,
-  '192.168.1.100'::inet
-);
+-- 6k. Sample notifications
+INSERT INTO notifications (id, org_id, user_id, type, title, message, reference_type, reference_id)
+VALUES
+  ('ff000000-0000-0000-0000-000000000031', 'a0000000-0000-0000-0000-000000000001',
+   'b0000000-0000-0000-0000-000000000004', 'appointment_reminder',
+   'Upcoming Appointment', 'You have an appointment tomorrow at 09:00 AM with Dr. Sarah Johnson.',
+   'appointment', 'e0000000-0000-0000-0000-000000000001'),
+  ('ff000000-0000-0000-0000-000000000032', 'a0000000-0000-0000-0000-000000000001',
+   'b0000000-0000-0000-0000-000000000004', 'payment_due',
+   'Payment Confirmed', 'Your payment of NGN 49,500.00 has been received. Thank you!',
+   'payment', 'ff000000-0000-0000-0000-000000000021')
+ON CONFLICT (id) DO NOTHING;

@@ -1,120 +1,74 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { NextRequest } from "next/server";
+import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError } from "@/lib/api-utils";
 
-export async function GET(req: NextRequest) {
-  try {
-    const supabase = await createClient();
-    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-    if (authError || !authUser) {
-      return NextResponse.json({ success: false, error: "Not authenticated" }, { status: 401 });
-    }
+export const GET = withAuth(async (req, supabase) => {
+  const sp = new URL(req.url).searchParams;
+  const patientId = sp.get("patient_id");
+  const status = sp.get("status");
+  const { page, pageSize, from, to } = getPagination(sp);
 
-    const { data: currentUser } = await supabase
-      .from("users")
-      .select("org_id")
-      .eq("id", authUser.id)
-      .single();
+  let query = supabase
+    .from("prescriptions")
+    .select("*, patient:patients(*, user:users(id, first_name, last_name)), doctor:staff!doctor_id(*, user:users(id, first_name, last_name)), items:prescription_items(*)",
+      { count: "exact" });
 
-    if (!currentUser) {
-      return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
-    }
+  if (patientId) query = query.eq("patient_id", patientId);
+  if (status) query = query.eq("status", status);
 
-    const { searchParams } = new URL(req.url);
-    const patientId = searchParams.get("patient_id");
+  const { data, error, count } = await query.order("created_at", { ascending: false }).range(from, to);
+  if (error) return err(error.message, 500);
+  return paginated(data, count || 0, page, pageSize);
+});
 
-    const serviceClient = createServiceClient();
-    let query = serviceClient
-      .from("prescriptions")
-      .select("*, patient:patients(*, user:users(*)), doctor:staff!doctor_id(*, user:users(*)), appointment:appointments(*)")
-      .eq("org_id", currentUser.org_id);
+export const POST = withAuth(async (req, supabase) => {
+  const body = await parseBody<{
+    patient_id: string; doctor_id: string; appointment_id?: string;
+    diagnosis?: string; notes?: string;
+    items: Array<{
+      medication_name: string; dosage: string; frequency: string;
+      route?: string; duration?: string; quantity?: number; instructions?: string;
+    }>;
+  }>(req);
 
-    if (patientId) query = query.eq("patient_id", patientId);
-
-    query = query.order("created_at", { ascending: false });
-
-    const { data, error } = await query;
-    if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true, data });
-  } catch (err) {
-    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  if (!body.patient_id || !body.doctor_id) {
+    throw new ValidationError("Missing required fields: patient_id, doctor_id");
   }
-}
-
-export async function POST(req: NextRequest) {
-  try {
-    const supabase = await createClient();
-    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-    if (authError || !authUser) {
-      return NextResponse.json({ success: false, error: "Not authenticated" }, { status: 401 });
-    }
-
-    const { data: currentUser } = await supabase
-      .from("users")
-      .select("org_id")
-      .eq("id", authUser.id)
-      .single();
-
-    if (!currentUser) {
-      return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
-    }
-
-    const body = await req.json();
-    const { patient_id, doctor_id, appointment_id, diagnosis, notes, items } = body;
-
-    if (!patient_id || !doctor_id) {
-      return NextResponse.json({ success: false, error: "Missing required fields: patient_id, doctor_id" }, { status: 400 });
-    }
-
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return NextResponse.json({ success: false, error: "At least one prescription item is required" }, { status: 400 });
-    }
-
-    const serviceClient = createServiceClient();
-
-    const { data: prescription, error: prescriptionError } = await serviceClient
-      .from("prescriptions")
-      .insert({
-        org_id: currentUser.org_id,
-        patient_id,
-        doctor_id,
-        appointment_id: appointment_id || null,
-        diagnosis: diagnosis || null,
-        notes: notes || null,
-        status: "active",
-      })
-      .select("*, patient:patients(*, user:users(*)), doctor:staff!doctor_id(*, user:users(*)), appointment:appointments(*)")
-      .single();
-
-    if (prescriptionError) {
-      return NextResponse.json({ success: false, error: prescriptionError.message }, { status: 500 });
-    }
-
-    const prescriptionItems = items.map((item: any) => ({
-      prescription_id: prescription.id,
-      medication_name: item.medication_name,
-      dosage: item.dosage,
-      frequency: item.frequency,
-      duration: item.duration || null,
-      route: item.route || "oral",
-      quantity: item.quantity || null,
-      refills_remaining: item.refills_remaining || 0,
-      instructions: item.instructions || null,
-    }));
-
-    const { data: createdItems, error: itemsError } = await serviceClient
-      .from("prescription_items")
-      .insert(prescriptionItems)
-      .select();
-
-    if (itemsError) {
-      return NextResponse.json({ success: false, error: itemsError.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true, data: { ...prescription, items: createdItems } }, { status: 201 });
-  } catch (err) {
-    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  if (!body.items?.length) {
+    throw new ValidationError("At least one prescription item is required");
   }
-}
+
+  const { data: rx, error: rxError } = await supabase
+    .from("prescriptions")
+    .insert({
+      patient_id: body.patient_id,
+      doctor_id: body.doctor_id,
+      appointment_id: body.appointment_id || null,
+      diagnosis: body.diagnosis || null,
+      notes: body.notes || null,
+      status: "active",
+    })
+    .select("id").single();
+
+  if (rxError) return err(rxError.message, 500);
+
+  const items = body.items.map((it) => ({
+    prescription_id: rx.id,
+    medication_name: it.medication_name,
+    dosage: it.dosage,
+    frequency: it.frequency,
+    route: it.route || "oral",
+    duration: it.duration || null,
+    quantity: it.quantity || null,
+    instructions: it.instructions || null,
+  }));
+
+  const { data: createdItems, error: itemsError } = await supabase.from("prescription_items").insert(items).select();
+  if (itemsError) return err(itemsError.message, 500);
+
+  const { data: full } = await supabase
+    .from("prescriptions")
+    .select("*, patient:patients(*, user:users(id, first_name, last_name)), doctor:staff!doctor_id(*, user:users(id, first_name, last_name)), items:prescription_items(*)")
+    .eq("id", rx.id).single();
+
+  return ok({ ...full, items: createdItems }, 201);
+});

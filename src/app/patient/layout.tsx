@@ -1,20 +1,88 @@
 "use client";
 
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Calendar, CreditCard, FileText, User, Bell, ChevronRight } from "lucide-react";
+import {
+  Home, Calendar, CreditCard, FileText, User, Bell, ChevronRight,
+  MessageCircle, X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/auth-context";
+import type { Notification } from "@/lib/api-types";
 
 const tabs = [
   { href: "/patient", label: "Home", icon: Home },
   { href: "/patient/appointments", label: "Appointments", icon: Calendar },
+  { href: "/patient/invoices", label: "Bills", icon: CreditCard },
   { href: "/patient/payments", label: "Payments", icon: CreditCard },
   { href: "/patient/records", label: "Records", icon: FileText },
   { href: "/patient/profile", label: "Profile", icon: User },
 ];
 
+const typeIcons: Record<string, string> = {
+  appointment_reminder: "📅",
+  payment_due: "💳",
+  lab_result: "🔬",
+  prescription_refill: "💊",
+  general: "📋",
+};
+
 export default function PatientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { user } = useAuth();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const bellRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetch("/api/notifications?page_size=20")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success) {
+          const all = json.data || [];
+          setNotifications(all.slice(0, 10));
+          setUnreadCount(all.filter((n: Notification) => !n.is_read).length);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node) &&
+        bellRef.current &&
+        !bellRef.current.contains(e.target as Node)
+      ) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const markAllRead = async () => {
+    const res = await fetch("/api/notifications", { method: "PUT" });
+    if (res.ok) {
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      setUnreadCount(0);
+    }
+  };
+
+  const notificationTime = (sentAt: string) => {
+    const diff = Date.now() - new Date(sentAt).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "Just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return new Date(sentAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -23,17 +91,90 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
           <div>
             <p className="text-sm text-text-secondary">Hello,</p>
             <h1 className="text-lg font-semibold text-foreground flex items-center gap-1">
-              Grace! <ChevronRight className="w-4 h-4 text-text-secondary" />
+              {user?.first_name || "Patient"}! <ChevronRight className="w-4 h-4 text-text-secondary" />
             </h1>
           </div>
-          <button className="relative p-2 rounded-full hover:bg-muted transition-colors">
-            <Bell className="w-5 h-5 text-foreground" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-danger rounded-full" />
-          </button>
+          <div className="flex items-center gap-2">
+            <a
+              href="https://wa.me/2349058038476"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 rounded-full hover:bg-accent-light/50 transition-colors"
+              title="Chat on WhatsApp"
+            >
+              <MessageCircle className="w-5 h-5 text-accent" />
+            </a>
+            <div className="relative">
+              <button
+                ref={bellRef}
+                onClick={() => setShowDropdown(!showDropdown)}
+                className="relative p-2 rounded-full hover:bg-muted transition-colors"
+              >
+                <Bell className="w-5 h-5 text-foreground" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 min-w-[18px] h-[18px] flex items-center justify-center bg-danger text-white text-[10px] font-bold rounded-full px-1 leading-none shadow-sm">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {showDropdown && (
+                <div
+                  ref={dropdownRef}
+                  className="absolute right-0 top-full mt-2 w-80 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden"
+                >
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                    <h3 className="text-sm font-semibold text-foreground">Notifications</h3>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={markAllRead}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+                  <div className="max-h-80 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <div className="px-4 py-8 text-center text-sm text-text-secondary">
+                        No notifications yet
+                      </div>
+                    ) : (
+                      notifications.map((n) => (
+                        <div
+                          key={n.id}
+                          className={cn(
+                            "flex items-start gap-3 px-4 py-3 border-b border-border/50 last:border-0 hover:bg-muted/50 transition-colors cursor-pointer",
+                            !n.is_read && "bg-primary-lighter/30"
+                          )}
+                        >
+                          <span className="text-lg leading-none mt-0.5 shrink-0">
+                            {typeIcons[n.type] || "📋"}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground leading-tight">{n.title}</p>
+                            {n.message && (
+                              <p className="text-xs text-text-secondary mt-0.5 line-clamp-2">{n.message}</p>
+                            )}
+                            <p className="text-[10px] text-text-secondary/70 mt-1">{notificationTime(n.sent_at)}</p>
+                          </div>
+                          {!n.is_read && (
+                            <span className="w-2 h-2 rounded-full bg-primary shrink-0 mt-1.5" />
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </header>
 
-      <main className="flex-1 max-w-lg mx-auto w-full px-4 pb-20 pt-4">{children}</main>
+      <main className="flex-1 max-w-lg mx-auto w-full px-4 pb-20 pt-4">
+        {children}
+      </main>
 
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-card border-t border-border">
         <div className="max-w-lg mx-auto flex items-center justify-around h-16 px-2">

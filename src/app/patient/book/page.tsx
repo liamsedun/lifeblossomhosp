@@ -1,9 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Calendar, Clock, ChevronDown, Check, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { useAuth } from "@/contexts/auth-context";
+
+interface StaffDoctor {
+  id: string;
+  staff_number: string;
+  specialization: string | null;
+  department: string | null;
+  user: {
+    id: string;
+    first_name: string;
+    last_name: string;
+  };
+}
 
 const departments = [
   "General Consultation",
@@ -16,32 +30,76 @@ const departments = [
   "Pharmacy",
 ];
 
-const doctors = [
-  { name: "Dr. Adebayo O.", specialty: "General Practitioner" },
-  { name: "Dr. Eze C.", specialty: "Cardiologist" },
-  { name: "Dr. Okonkwo N.", specialty: "Obstetrician" },
-  { name: "Dr. Bello F.", specialty: "Dermatologist" },
-  { name: "Dr. Musa A.", specialty: "Pediatrician" },
-];
-
 const timeSlots = [
-  { label: "Morning", time: "9:00 AM - 12:00 PM", available: true },
-  { label: "Afternoon", time: "1:00 PM - 4:00 PM", available: true },
-  { label: "Evening", time: "5:00 PM - 7:00 PM", available: false },
+  { label: "Morning", start: "09:00", end: "12:00", available: true },
+  { label: "Afternoon", start: "13:00", end: "16:00", available: true },
+  { label: "Evening", start: "17:00", end: "19:00", available: false },
 ];
 
 export default function BookAppointmentPage() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const [doctors, setDoctors] = useState<StaffDoctor[]>([]);
+  const [patientId, setPatientId] = useState<string | null>(null);
+  const [loadingDoctors, setLoadingDoctors] = useState(true);
   const [department, setDepartment] = useState("");
-  const [doctor, setDoctor] = useState("");
+  const [doctorId, setDoctorId] = useState("");
+  const [doctorName, setDoctorName] = useState("");
   const [date, setDate] = useState("");
   const [timeSlot, setTimeSlot] = useState("");
   const [reason, setReason] = useState("");
   const [showDept, setShowDept] = useState(false);
   const [showDoc, setShowDoc] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = () => {
-    setSubmitted(true);
+  useEffect(() => {
+    fetch("/api/staff")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success) setDoctors(json.data);
+      })
+      .catch(console.error)
+      .finally(() => setLoadingDoctors(false));
+
+    fetch("/api/patients/me")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success) setPatientId(json.data.id);
+      })
+      .catch(console.error);
+  }, []);
+
+  const handleSubmit = async () => {
+    if (!patientId || !doctorId || !date || !timeSlot) return;
+    setError("");
+    setSaving(true);
+    try {
+      const slot = timeSlots.find((s) => s.label === timeSlot);
+      const res = await fetch("/api/appointments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patient_id: patientId,
+          doctor_id: doctorId,
+          appointment_date: date,
+          start_time: slot?.start || "09:00",
+          end_time: slot?.end || "12:00",
+          reason: reason || null,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setSubmitted(true);
+      } else {
+        setError(json.error || "Failed to book appointment");
+      }
+    } catch {
+      setError("Network error");
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (submitted) {
@@ -104,19 +162,23 @@ export default function BookAppointmentPage() {
             onClick={() => { setShowDoc(!showDoc); setShowDept(false); }}
             className="w-full h-10 flex items-center justify-between px-3 border border-border rounded-lg text-sm text-left hover:border-primary/40 transition-colors"
           >
-            <span className={doctor ? "text-foreground" : "text-text-secondary"}>{doctor || "Select doctor"}</span>
+            <span className={doctorId ? "text-foreground" : "text-text-secondary"}>{doctorName || "Select doctor"}</span>
             <ChevronDown className="w-4 h-4 text-text-secondary" />
           </button>
           {showDoc && (
-            <div className="absolute z-20 top-full mt-1 left-0 right-0 bg-card border border-border rounded-lg shadow-lg">
-              {doctors.map((d) => (
+            <div className="absolute z-20 top-full mt-1 left-0 right-0 bg-card border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+              {loadingDoctors ? (
+                <div className="px-3 py-2.5 text-sm text-text-secondary">Loading doctors...</div>
+              ) : doctors.length === 0 ? (
+                <div className="px-3 py-2.5 text-sm text-text-secondary">No doctors available</div>
+              ) : doctors.map((d) => (
                 <button
-                  key={d.name}
-                  onClick={() => { setDoctor(d.name); setShowDoc(false); }}
+                  key={d.id}
+                  onClick={() => { setDoctorId(d.id); setDoctorName(`Dr. ${d.user.first_name} ${d.user.last_name.charAt(0)}.`); setShowDoc(false); }}
                   className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors"
                 >
-                  <span className="text-foreground">{d.name}</span>
-                  <span className="text-text-secondary text-xs ml-2">{d.specialty}</span>
+                  <span className="text-foreground">{`Dr. ${d.user.first_name} ${d.user.last_name}`}</span>
+                  <span className="text-text-secondary text-xs ml-2">{d.specialization || d.department || "General"}</span>
                 </button>
               ))}
             </div>
@@ -155,7 +217,7 @@ export default function BookAppointmentPage() {
               >
                 <Clock className="w-3.5 h-3.5 mb-0.5" />
                 <span className="font-medium">{slot.label}</span>
-                <span className="text-[10px] mt-0.5">{slot.time}</span>
+                <span className="text-[10px] mt-0.5">{slot.start} – {slot.end}</span>
               </button>
             ))}
           </div>
@@ -172,13 +234,16 @@ export default function BookAppointmentPage() {
           />
         </div>
 
-        <button
-          onClick={handleSubmit}
-          disabled={!department || !doctor || !date || !timeSlot}
-          className="w-full h-12 bg-primary text-white text-sm font-semibold rounded-xl shadow-lg hover:bg-primary-dark transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
-        >
-          Confirm Booking
-        </button>
+          {error && (
+            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
+          )}
+          <button
+            onClick={handleSubmit}
+            disabled={!department || !doctorId || !date || !timeSlot || saving}
+            className="w-full h-12 bg-primary text-white text-sm font-semibold rounded-xl shadow-lg hover:bg-primary-dark transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+          >
+            {saving ? "Booking..." : "Confirm Booking"}
+          </button>
       </div>
     </div>
   );

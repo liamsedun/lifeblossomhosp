@@ -2,8 +2,8 @@ import { Calendar, MessageCircle } from "lucide-react";
 
 const stats = [
   { value: "15+", label: "Years of Excellence" },
-  { value: "50+", label: "Expert Doctors" },
-  { value: "10k+", label: "Happy Patients" },
+  { value: "5", label: "Expert Doctors" },
+  { value: "over 1+", label: "Happy Patients" },
   { value: "99%", label: "Satisfaction Rate" },
 ];
 
@@ -13,13 +13,12 @@ export default function Hero() {
       id="home"
       className="relative min-h-screen flex flex-col justify-center overflow-hidden"
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/90 via-primary-dark/85 to-[#06223d]/95" />
+      <div className="absolute inset-0 bg-gradient-to-br from-[#0a1628]/95 via-[#0f2a3f]/90 to-[#06223d]/95" />
       <div
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat scale-105 animate-[heroZoom_20s_ease-in-out_infinite]"
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat scale-105 animate-[heroZoom_20s_ease-in-out_infinite] opacity-30"
         style={{ backgroundImage: "url('https://images.unsplash.com/photo-1746173098661-45ae0ccb6030?fm=jpg&q=80&w=1920&auto=format&fit=crop')" }}
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-[#06223d]/60 via-transparent to-primary/30" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(22,163,74,0.1),transparent_60%)]" />
+      <div className="absolute inset-0 bg-gradient-to-t from-[#06223d]/80 via-[#0a1628]/40 to-transparent" />
 
       <div className="relative z-10 mx-auto max-w-7xl px-5 pt-28 pb-16 md:pt-36 md:pb-20">
         <div className="mx-auto max-w-3xl text-center">
@@ -43,14 +42,16 @@ export default function Hero() {
 
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
             <a
-              href="#book"
+              href="/login"
               className="inline-flex items-center gap-2.5 rounded-xl bg-accent px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-accent/30 transition-all hover:bg-emerald-600 hover:shadow-xl hover:shadow-accent/40 active:scale-[0.97] w-full sm:w-auto justify-center"
             >
               <Calendar size={18} />
               Book Appointment
             </a>
             <a
-              href="#whatsapp"
+              href="https://wa.me/2349058038476"
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex items-center gap-2.5 rounded-xl border-2 border-white/30 px-7 py-3.5 text-sm font-semibold text-white transition-all hover:border-accent hover:bg-accent hover:shadow-lg hover:shadow-accent/20 active:scale-[0.97] w-full sm:w-auto justify-center"
             >
               <MessageCircle size={18} />

@@ -9,7 +9,7 @@ interface AuthContextValue {
   session: unknown;
   organization: Organization | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<AuthResponse>;
+  login: (payload: Record<string, any>) => Promise<AuthResponse>;
   register: (data: {
     email: string;
     password: string;
@@ -46,11 +46,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
-  const login = useCallback(async (email: string, password: string): Promise<AuthResponse> => {
+  const login = useCallback(async (payload: Record<string, any>): Promise<AuthResponse> => {
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(payload),
     });
     const json = await res.json();
     if (!json.success) throw new Error(json.error ?? "Login failed");

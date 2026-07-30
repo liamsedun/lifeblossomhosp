@@ -1,148 +1,55 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { NextRequest } from "next/server";
+import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError, resolvePatientId } from "@/lib/api-utils";
 
-export async function GET(req: NextRequest) {
-  try {
-    const supabase = await createClient();
-    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-    if (authError || !authUser) {
-      return NextResponse.json({ success: false, error: "Not authenticated" }, { status: 401 });
-    }
+// GET /api/appointments — list (auto-scopes to patient for patient-role users)
+export const GET = withAuth(async (req, supabase, authUserId) => {
+  const sp = new URL(req.url).searchParams;
+  const patientId = sp.get("patient_id") || await resolvePatientId(supabase, authUserId);
+  const doctorId = sp.get("doctor_id");
+  const status = sp.get("status");
+  const date = sp.get("date");
+  const { page, pageSize, from, to } = getPagination(sp);
 
-    const { data: currentUser } = await supabase
-      .from("users")
-      .select("org_id")
-      .eq("id", authUser.id)
-      .single();
+  let query = supabase
+    .from("appointments")
+    .select("*, patient:patients(*, user:users(id, first_name, last_name, phone)), doctor:staff!doctor_id(*, user:users(id, first_name, last_name))",
+      { count: "exact" });
 
-    if (!currentUser) {
-      return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
-    }
+  if (patientId) query = query.eq("patient_id", patientId);
+  if (doctorId) query = query.eq("doctor_id", doctorId);
+  if (status) query = query.eq("status", status);
+  if (date) query = query.eq("appointment_date", date);
 
-    const { searchParams } = new URL(req.url);
-    const patientId = searchParams.get("patient_id");
-    const staffId = searchParams.get("staff_id");
-    const status = searchParams.get("status");
-    const date = searchParams.get("date");
+  const { data, error, count } = await query.order("appointment_date", { ascending: false }).range(from, to);
+  if (error) return err(error.message, 500);
+  return paginated(data, count || 0, page, pageSize);
+});
 
-    const serviceClient = createServiceClient();
-    let query = serviceClient
-      .from("appointments")
-      .select("*, patient:patients(*, user:users(*)), staff:staff(*, user:users(*))")
-      .eq("org_id", currentUser.org_id);
+// POST /api/appointments
+export const POST = withAuth(async (req, supabase) => {
+  const body = await parseBody<{
+    patient_id: string; doctor_id?: string; appointment_date: string;
+    start_time: string; end_time?: string; type?: string; reason?: string;
+  }>(req);
 
-    if (patientId) query = query.eq("patient_id", patientId);
-    if (staffId) query = query.eq("staff_id", staffId);
-    if (status) query = query.eq("status", status);
-    if (date) query = query.eq("appointment_date", date);
-
-    query = query.order("appointment_date", { ascending: false });
-    query = query.order("start_time", { ascending: false });
-
-    const { data, error } = await query;
-    if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true, data });
-  } catch (err) {
-    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  if (!body.patient_id || !body.appointment_date || !body.start_time) {
+    throw new ValidationError("Missing required fields: patient_id, appointment_date, start_time");
   }
-}
 
-export async function POST(req: NextRequest) {
-  try {
-    const supabase = await createClient();
-    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-    if (authError || !authUser) {
-      return NextResponse.json({ success: false, error: "Not authenticated" }, { status: 401 });
-    }
+  const { data, error } = await supabase
+    .from("appointments")
+    .insert({
+      patient_id: body.patient_id,
+      doctor_id: body.doctor_id || null,
+      appointment_date: body.appointment_date,
+      start_time: body.start_time,
+      end_time: body.end_time || null,
+      type: body.type || "in_person",
+      reason: body.reason || null,
+    })
+    .select("*, patient:patients(*, user:users(id, first_name, last_name)), doctor:staff!doctor_id(*, user:users(id, first_name, last_name))")
+    .single();
 
-    const { data: currentUser } = await supabase
-      .from("users")
-      .select("org_id")
-      .eq("id", authUser.id)
-      .single();
-
-    if (!currentUser) {
-      return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
-    }
-
-    const body = await req.json();
-    const { patient_id, staff_id, appointment_date, start_time, end_time, type, reason, notes } = body;
-
-    if (!patient_id || !staff_id || !appointment_date || !start_time || !end_time) {
-      return NextResponse.json({
-        success: false,
-        error: "Missing required fields: patient_id, staff_id, appointment_date, start_time, end_time",
-      }, { status: 400 });
-    }
-
-    const serviceClient = createServiceClient();
-
-    const { data: staff } = await serviceClient
-      .from("staff")
-      .select("id, is_available, available_from, available_until")
-      .eq("id", staff_id)
-      .eq("org_id", currentUser.org_id)
-      .single();
-
-    if (!staff) {
-      return NextResponse.json({ success: false, error: "Staff not found" }, { status: 404 });
-    }
-
-    if (!staff.is_available) {
-      return NextResponse.json({ success: false, error: "Staff is not available for appointments" }, { status: 409 });
-    }
-
-    if (staff.available_from && staff.available_until) {
-      if (start_time < staff.available_from || end_time > staff.available_until) {
-        return NextResponse.json({
-          success: false,
-          error: `Staff availability is ${staff.available_from} to ${staff.available_until}`,
-        }, { status: 409 });
-      }
-    }
-
-    const { data: conflicting, error: conflictError } = await serviceClient
-      .from("appointments")
-      .select("id, start_time, end_time")
-      .eq("staff_id", staff_id)
-      .eq("appointment_date", appointment_date)
-      .neq("status", "cancelled")
-      .or(`and(start_time.lte.${end_time},end_time.gt.${start_time})`);
-
-    if (conflictError) {
-      return NextResponse.json({ success: false, error: conflictError.message }, { status: 500 });
-    }
-
-    if (conflicting && conflicting.length > 0) {
-      return NextResponse.json({ success: false, error: "Staff has a conflicting appointment at this time" }, { status: 409 });
-    }
-
-    const { data, error } = await serviceClient
-      .from("appointments")
-      .insert({
-        org_id: currentUser.org_id,
-        patient_id,
-        staff_id,
-        appointment_date,
-        start_time,
-        end_time,
-        type: type || "in_person",
-        reason: reason || null,
-        notes: notes || null,
-        status: "scheduled",
-      })
-      .select("*, patient:patients(*, user:users(*)), staff:staff(*, user:users(*))")
-      .single();
-
-    if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true, data }, { status: 201 });
-  } catch (err) {
-    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
-  }
-}
+  if (error) return err(error.message, 500);
+  return ok(data, 201);
+});

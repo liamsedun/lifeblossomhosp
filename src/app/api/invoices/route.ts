@@ -1,136 +1,74 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { NextRequest } from "next/server";
+import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError, resolvePatientId } from "@/lib/api-utils";
 
-export async function GET(req: NextRequest) {
-  try {
-    const supabase = await createClient();
-    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-    if (authError || !authUser) {
-      return NextResponse.json({ success: false, error: "Not authenticated" }, { status: 401 });
-    }
+export const GET = withAuth(async (req, supabase, authUserId) => {
+  const sp = new URL(req.url).searchParams;
+  const patientId = sp.get("patient_id") || await resolvePatientId(supabase, authUserId);
+  const status = sp.get("status");
+  const { page, pageSize, from, to } = getPagination(sp);
 
-    const { data: currentUser } = await supabase
-      .from("users")
-      .select("org_id")
-      .eq("id", authUser.id)
-      .single();
+  let query = supabase
+    .from("invoices")
+    .select("*, patient:patients(*, user:users(id, first_name, last_name)), items:invoice_items(*), payments:payments(*)",
+      { count: "exact" });
 
-    if (!currentUser) {
-      return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
-    }
+  if (patientId) query = query.eq("patient_id", patientId);
+  if (status) query = query.eq("status", status);
 
-    const { searchParams } = new URL(req.url);
-    const patientId = searchParams.get("patient_id");
-    const status = searchParams.get("status");
+  const { data, error, count } = await query.order("issue_date", { ascending: false }).range(from, to);
+  if (error) return err(error.message, 500);
+  return paginated(data, count || 0, page, pageSize);
+});
 
-    const serviceClient = createServiceClient();
-    let query = serviceClient
-      .from("invoices")
-      .select("*, patient:patients(*, user:users(*)), appointment:appointments(*), items:invoice_items(*), payments:payments(*)")
-      .eq("org_id", currentUser.org_id);
+export const POST = withAuth(async (req, supabase, authUserId) => {
+  const body = await parseBody<{
+    patient_id: string; appointment_id?: string; issue_date?: string; due_date?: string;
+    subtotal: number; tax_amount?: number; discount_amount?: number; total_amount: number;
+    notes?: string; status?: string;
+    items: Array<{ description: string; quantity: number; unit_price: number; total_price: number }>;
+  }>(req);
 
-    if (patientId) query = query.eq("patient_id", patientId);
-    if (status) query = query.eq("status", status);
-
-    query = query.order("created_at", { ascending: false });
-
-    const { data, error } = await query;
-    if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true, data });
-  } catch (err) {
-    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  if (!body.patient_id || body.subtotal === undefined || !body.total_amount) {
+    throw new ValidationError("Missing required fields: patient_id, subtotal, total_amount");
   }
-}
-
-export async function POST(req: NextRequest) {
-  try {
-    const supabase = await createClient();
-    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-    if (authError || !authUser) {
-      return NextResponse.json({ success: false, error: "Not authenticated" }, { status: 401 });
-    }
-
-    const { data: currentUser } = await supabase
-      .from("users")
-      .select("org_id")
-      .eq("id", authUser.id)
-      .single();
-
-    if (!currentUser) {
-      return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
-    }
-
-    const body = await req.json();
-    const { patient_id, appointment_id, due_date, notes, items } = body;
-
-    if (!patient_id || !items || !Array.isArray(items) || items.length === 0) {
-      return NextResponse.json({ success: false, error: "Missing required fields: patient_id, items (non-empty array)" }, { status: 400 });
-    }
-
-    const serviceClient = createServiceClient();
-
-    const { count } = await serviceClient
-      .from("invoices")
-      .select("id", { count: "exact", head: true })
-      .eq("org_id", currentUser.org_id);
-
-    const year = new Date().getFullYear();
-    const invoiceNumber = `INV-${year}-${String((count || 0) + 1).padStart(4, "0")}`;
-
-    const lineItems = items.map((item: any) => ({
-      description: item.description,
-      quantity: item.quantity || 1,
-      unit_price: item.unit_price,
-      total: (item.quantity || 1) * item.unit_price,
-    }));
-
-    const subtotal = lineItems.reduce((sum: number, item: any) => sum + item.total, 0);
-    const tax = body.tax || 0;
-    const total = subtotal + tax;
-
-    const { data: invoice, error: invoiceError } = await serviceClient
-      .from("invoices")
-      .insert({
-        org_id: currentUser.org_id,
-        patient_id,
-        appointment_id: appointment_id || null,
-        invoice_number: invoiceNumber,
-        subtotal,
-        tax,
-        total,
-        status: "draft",
-        due_date: due_date || null,
-        notes: notes || null,
-      })
-      .select()
-      .single();
-
-    if (invoiceError) {
-      return NextResponse.json({ success: false, error: invoiceError.message }, { status: 500 });
-    }
-
-    const invoiceItems = lineItems.map((item: any) => ({
-      ...item,
-      invoice_id: invoice.id,
-    }));
-
-    const { data: createdItems, error: itemsError } = await serviceClient
-      .from("invoice_items")
-      .insert(invoiceItems)
-      .select();
-
-    if (itemsError) {
-      return NextResponse.json({ success: false, error: itemsError.message }, { status: 500 });
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: { ...invoice, items: createdItems },
-    }, { status: 201 });
-  } catch (err) {
-    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  if (!body.items || !body.items.length) {
+    throw new ValidationError("At least one invoice item is required");
   }
-}
+
+  // Generate invoice number
+  const { count } = await supabase.from("invoices").select("id", { count: "exact", head: true });
+  const invoiceNumber = `INV-${String((count || 0) + 1).padStart(4, "0")}`;
+
+  const { data: invoice, error: invError } = await supabase
+    .from("invoices")
+    .insert({
+      patient_id: body.patient_id,
+      invoice_number: invoiceNumber,
+      issue_date: body.issue_date || new Date().toISOString().split("T")[0],
+      due_date: body.due_date || null,
+      status: body.status || "pending",
+      subtotal: body.subtotal,
+      tax_amount: body.tax_amount || 0,
+      discount_amount: body.discount_amount || 0,
+      total_amount: body.total_amount,
+      created_by: authUserId,
+      notes: body.notes || null,
+    })
+    .select("id")
+    .single();
+
+  if (invError) return err(invError.message, 500);
+
+  // Insert items
+  const lineItems = body.items.map((it) => ({ ...it, invoice_id: invoice.id }));
+  const { data: items, error: itemsError } = await supabase.from("invoice_items").insert(lineItems).select();
+  if (itemsError) return err(itemsError.message, 500);
+
+  // Fetch full invoice
+  const { data: full } = await supabase
+    .from("invoices")
+    .select("*, patient:patients(*, user:users(id, first_name, last_name)), items:invoice_items(*), payments:payments(*)")
+    .eq("id", invoice.id).single();
+
+  return ok({ ...full, items }, 201);
+});

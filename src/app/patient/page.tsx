@@ -1,26 +1,40 @@
 "use client";
 
+import { useEffect } from "react";
 import { Calendar, CreditCard, FileText, Zap, ArrowRight, Clock, CheckCircle, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Logo from "@/components/ui/logo";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
-import { useAppointments } from "@/hooks/use-appointments";
-import { useInvoices } from "@/hooks/use-billing";
-import { usePayments } from "@/hooks/use-billing";
+import { useAppointmentStore } from "@/stores/appointment-store";
+import { usePaymentStore } from "@/stores/payment-store";
 
 export default function PatientDashboard() {
   const { user } = useAuth();
-  const { data: appointments, loading: apptsLoading } = useAppointments();
-  const { data: invoices, loading: invLoading } = useInvoices();
-  const { data: payments, loading: payLoading } = usePayments();
 
-  const loading = apptsLoading || invLoading || payLoading;
+  const appointments = useAppointmentStore((s) => s.appointments);
+  const loadingAppts = useAppointmentStore((s) => s.loading);
+  const fetchAppointments = useAppointmentStore((s) => s.fetchAppointments);
+
+  const invoices = usePaymentStore((s) => s.invoices);
+  const payments = usePaymentStore((s) => s.payments);
+  const loadingPay = usePaymentStore((s) => s.loading);
+  const fetchInvoices = usePaymentStore((s) => s.fetchInvoices);
+  const fetchPayments = usePaymentStore((s) => s.fetchPayments);
+
+  useEffect(() => {
+    fetchAppointments({ pageSize: 50 });
+    fetchInvoices({ pageSize: 50 });
+    fetchPayments({ pageSize: 50 });
+  }, [fetchAppointments, fetchInvoices, fetchPayments]);
+
+  const loading = loadingAppts || loadingPay;
 
   const upcoming = appointments?.find(
     (a) => a.status === "scheduled" || a.status === "confirmed" || a.status === "in_progress"
   );
   const pendingInvoices = invoices?.filter((inv) => inv.status === "pending" || inv.status === "partially_paid");
-  const outstandingTotal = pendingInvoices?.reduce((sum, inv) => sum + inv.total, 0) ?? 0;
+  const outstandingTotal = pendingInvoices?.reduce((sum, inv) => sum + inv.total_amount, 0) ?? 0;
   const sortedPayments = payments?.slice().sort(
     (a, b) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime()
   );
@@ -29,7 +43,7 @@ export default function PatientDashboard() {
   const quickActions = [
     { label: "Book", href: "/patient/book", variant: "primary" as const },
     { label: "Pay", href: "/patient/payments", variant: "accent" as const },
-    { label: "Chat", href: "#", variant: "outline" as const },
+    { label: "Chat", href: "https://wa.me/2349058038476", variant: "outline" as const },
   ];
 
   const summaryCards = [
@@ -114,7 +128,7 @@ export default function PatientDashboard() {
     <div className="space-y-5">
       <div>
         <p className="text-text-secondary text-sm">Welcome back{user ? `, ${user.first_name}` : ""}</p>
-        <h2 className="text-xl font-bold text-foreground">Life Blossom</h2>
+        <Logo variant="inline" iconSize={28} textClass="text-xl font-bold" />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -137,21 +151,25 @@ export default function PatientDashboard() {
       <div className="bg-card border border-border rounded-xl p-4 card-shadow">
         <h3 className="text-sm font-semibold text-foreground mb-3">Quick Actions</h3>
         <div className="flex flex-wrap gap-2">
-          {quickActions.map((action) => (
-            <Link
-              key={action.label}
-              href={action.href}
-              className={cn(
-                "inline-flex items-center gap-1.5 px-4 h-9 rounded-lg text-sm font-medium transition-all hover:opacity-90",
-                action.variant === "primary" && "bg-primary text-white",
-                action.variant === "accent" && "bg-accent text-white",
-                action.variant === "outline" && "border border-border text-foreground hover:bg-muted"
-              )}
-            >
-              {action.label}
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          ))}
+          {quickActions.map((action) => {
+            const isExternal = action.href.startsWith("http");
+            return (
+              <a
+                key={action.label}
+                href={action.href}
+                {...(isExternal ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-4 h-9 rounded-lg text-sm font-medium transition-all hover:opacity-90",
+                  action.variant === "primary" && "bg-primary text-white",
+                  action.variant === "accent" && "bg-accent text-white",
+                  action.variant === "outline" && "border border-border text-foreground hover:bg-muted"
+                )}
+              >
+                {action.label}
+                <ArrowRight className="w-3.5 h-3.5" />
+              </a>
+            );
+          })}
         </div>
       </div>
 
