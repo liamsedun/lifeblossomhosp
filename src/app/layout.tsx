@@ -52,7 +52,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="Life Blossom" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body className="min-h-full flex flex-col font-[family-name:var(--font-inter)]">
+      <body className="min-h-full flex flex-col font-[family-name:var(--font-inter)]" suppressHydrationWarning>
         <AuthProvider>
           <NotificationProvider>
             <PwaWrapper>{children}</PwaWrapper>
