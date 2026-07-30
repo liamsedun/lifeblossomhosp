@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError } from "@/lib/api-utils";
+import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError, resolveOrgId } from "@/lib/api-utils";
 
 const ALLOWED_CATEGORIES = [
   "donation", "food_sales", "drink_sales", "drug_sales", "consumables", "other",
@@ -13,13 +13,13 @@ export const GET = withAuth(async (req, supabase, authUserId) => {
   const search = sp.get("search");
   const { page, pageSize, from, to } = getPagination(sp);
 
-  const { data: caller } = await supabase.from("users").select("org_id").eq("id", authUserId).single();
-  if (!caller) return err("User not found", 404);
+  const orgId = await resolveOrgId(supabase, authUserId);
+  if (!orgId) return err("User profile not found", 404);
 
   let query = supabase
     .from("other_income")
     .select("*, created_by_user:users!other_income_created_by_fkey(id, first_name, last_name)", { count: "exact" })
-    .eq("org_id", caller.org_id);
+    .eq("org_id", orgId);
 
   if (category) query = query.eq("category", category);
   if (fromDate) query = query.gte("income_date", fromDate);
@@ -46,13 +46,13 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
     throw new ValidationError(`Invalid category. Must be one of: ${ALLOWED_CATEGORIES.join(", ")}`);
   }
 
-  const { data: caller } = await supabase.from("users").select("org_id").eq("id", authUserId).single();
-  if (!caller) return err("User not found", 404);
+  const orgId = await resolveOrgId(supabase, authUserId);
+  if (!orgId) return err("User profile not found", 404);
 
   const { data, error } = await supabase
     .from("other_income")
     .insert({
-      org_id: caller.org_id,
+      org_id: orgId,
       description: body.description,
       category: body.category,
       amount: body.amount,

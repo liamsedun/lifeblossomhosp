@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError } from "@/lib/api-utils";
+import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError, resolveOrgId } from "@/lib/api-utils";
 
 export const GET = withAuth(async (req, supabase, authUserId) => {
   const sp = new URL(req.url).searchParams;
@@ -58,12 +58,12 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   if (!authData.user) return err("Failed to create auth user", 500);
 
   // Get org_id
-  const { data: profile } = await supabase.from("users").select("org_id").eq("id", authUserId).single();
-  if (!profile) return err("Profile not found", 404);
+  const orgId = await resolveOrgId(supabase, authUserId);
+  if (!orgId) return err("User profile not found", 404);
 
   // Create user record
   const { error: userError } = await supabase.from("users").insert({
-    id: authData.user.id, org_id: profile.org_id, email: body.email,
+    id: authData.user.id, org_id: orgId, email: body.email,
     role: body.role, first_name: body.first_name, last_name: body.last_name,
     phone: body.phone || null, password_hash: "",
   });
@@ -74,7 +74,7 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   const staffNumber = `STF-${String((count || 0) + 1).padStart(4, "0")}`;
 
   const { data, error } = await supabase.from("staff").insert({
-    org_id: profile.org_id, user_id: authData.user.id, staff_number: staffNumber,
+    org_id: orgId, user_id: authData.user.id, staff_number: staffNumber,
     specialization: body.specialization || null, license_number: body.license_number || null,
     department: body.department || null, qualification: body.qualification || null,
     employment_type: body.employment_type || "full_time",

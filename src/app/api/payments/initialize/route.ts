@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { withAuth, ok, err, parseBody, ValidationError } from "@/lib/api-utils";
+import { withAuth, ok, err, parseBody, ValidationError, resolveOrgId } from "@/lib/api-utils";
 import { initializeTransaction } from "@/lib/paystack";
 
 /**
@@ -46,8 +46,7 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   }
 
   // Get user's org_id for metadata
-  const { data: profile } = await supabase.from("users").select("org_id").eq("id", authUserId).single();
-  const orgId = profile?.org_id;
+  const orgId = await resolveOrgId(supabase, authUserId);
 
   // Initialize Paystack transaction
   const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/payments/callback`;

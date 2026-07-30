@@ -69,6 +69,22 @@ export function withAuth(handler: Handler) {
   };
 }
 
+/**
+ * Resolve the org_id of the calling user.
+ * Tries the authenticated (RLS) client first, falls back to the
+ * service-role client so the call succeeds even if the public.users
+ * row is temporarily invisible due to RLS.
+ */
+import { createServiceClient } from "@/lib/supabase/server";
+
+export async function resolveOrgId(supabase: SupabaseClient, authUserId: string): Promise<string | null> {
+  const { data: p } = await supabase.from("users").select("org_id").eq("id", authUserId).maybeSingle();
+  if (p) return p.org_id;
+  const svc = createServiceClient();
+  const { data: s } = await svc.from("users").select("org_id").eq("id", authUserId).maybeSingle();
+  return s?.org_id ?? null;
+}
+
 /** Resolve a param that may be a string or Promise<string> (Next.js App Router pattern). */
 export async function resolveParam(p: string | Promise<string>): Promise<string> {
   return typeof p === "string" ? p : await p;

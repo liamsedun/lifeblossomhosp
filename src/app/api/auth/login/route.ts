@@ -85,12 +85,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Authentication succeeded but no user found" }, { status: 500 });
     }
 
-    // Query the public.users table through RLS (uses the session from cookies).
-    // RLS restricts this to the current user's own record.
+    // Query the public.users table through RLS.
+    // MUST filter by id to guarantee we get the right row, not
+    // just the first user in the org.
     const { data: profile } = await supabase
       .from("users")
       .select("id, org_id, email, role, first_name, last_name, phone, avatar_url, is_active, last_login_at, created_at, updated_at, organization:organizations(*)")
+      .eq("id", authUser.id)
       .single();
+
+    if (!profile) {
+      return NextResponse.json(
+        { success: false, error: "User profile not found in public.users table. Visit /api/auth/setup-super-admin to re-create it." },
+        { status: 404 },
+      );
+    }
 
     return NextResponse.json({ success: true, data: { user: profile, session: true } });
   } catch (err) {

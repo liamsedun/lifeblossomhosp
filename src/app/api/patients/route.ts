@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError, resolvePatientId } from "@/lib/api-utils";
+import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError, resolvePatientId, resolveOrgId } from "@/lib/api-utils";
 
 // GET /api/patients — list patients (patient sees only own, staff sees all in org)
 export const GET = withAuth(async (req, supabase, authUserId) => {
@@ -53,9 +53,8 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   }
 
   // Get org_id of the creating user
-  const { data: profile } = await supabase.from("users").select("org_id").eq("id", authUserId).single();
-  if (!profile) return err("User profile not found", 404);
-  const orgId = profile.org_id;
+  const orgId = await resolveOrgId(supabase, authUserId);
+  if (!orgId) return err("User profile not found — visit /api/auth/setup-super-admin to re-create it", 404);
 
   // Create auth user
   const { data: authData, error: signUpError } = await supabase.auth.signUp({ email, password });

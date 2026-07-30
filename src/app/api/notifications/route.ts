@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { withAuth, ok, paginated, err, getPagination, parseBody, ValidationError } from "@/lib/api-utils";
+import { withAuth, ok, paginated, err, getPagination, parseBody, ValidationError, resolveOrgId } from "@/lib/api-utils";
 
 export const GET = withAuth(async (req, supabase, authUserId) => {
   const sp = new URL(req.url).searchParams;
@@ -32,11 +32,11 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   }
 
   // Get admin's org_id
-  const { data: profile } = await supabase.from("users").select("org_id").eq("id", authUserId).single();
-  if (!profile) return err("Admin profile not found", 404);
+  const orgId = await resolveOrgId(supabase, authUserId);
+  if (!orgId) return err("User profile not found", 404);
 
   const { data, error } = await supabase.from("notifications").insert({
-    org_id: profile.org_id,
+    org_id: orgId,
     user_id: body.user_id,
     type: body.type,
     title: body.title,
