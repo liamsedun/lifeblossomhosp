@@ -1,0 +1,80 @@
+[build]
+  command   = "npm run build"
+  publish   = ".next"
+  functions = "netlify/functions"
+
+[build.environment]
+  NEXT_PRIVATE_STANDALONE = "false"
+
+# ─── Netlify Next.js Runtime ─────────────────────────────────────
+# Netlify auto-detects Next.js. This section pins the required
+# plugin version and configures the cache.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+  [plugins.inputs]
+    # Exclude middleware from edge (force Lambda) if you hit
+    # edge-function size limits
+    # excludeMiddleware = false
+
+# ─── Security & Cache Headers ────────────────────────────────────
+[[headers]]
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/favicon.*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "/manifest.json"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+
+[[headers]]
+  for = "/icons/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options    = "nosniff"
+    X-Frame-Options           = "DENY"
+    Referrer-Policy           = "strict-origin-when-cross-origin"
+    Permissions-Policy        = "camera=(), microphone=(), geolocation=()"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+
+# ─── Redirects ───────────────────────────────────────────────────
+# Next.js App Router handles its own routing, but these catch
+# common legacy / edge-case redirects.
+
+[[redirects]]
+  from = "/login"
+  to   = "/login"
+  status = 200
+
+# API routes handled by Next.js — no extra rewrites needed.
+
+[[redirects]]
+  from = "/staff/login"
+  to   = "/staff/login"
+  status = 200
+
+# Catch-all — 404 fallback (Next.js App Router handles this natively)
+[[redirects]]
+  from = "/*"
+  to   = "/_next/404"
+  status = 404
+  force = false
