@@ -35,7 +35,6 @@ const styles = {
     color: "#eef1f5",
     borderRadius: "8px",
     fontSize: "14px",
-    padding: "12px 14px",
   },
   label: {
     color: "#8fa0b3",
