@@ -13,6 +13,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose,
 } from "@/components/ui/dialog";
 import { cn, formatCurrency } from "@/lib/utils";
+import { useRoleGuard } from "@/hooks/use-role-guard";
 
 type IncomeEntry = {
   id: string; org_id: string; description: string; category: string;
@@ -72,6 +73,7 @@ function downloadCsv(filename: string, rows: string[][]) {
 }
 
 export default function OtherIncomePage() {
+  const { authorized } = useRoleGuard(["super_admin", "admin", "accountant"]);
   const [data, setData] = useState<IncomeEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -194,6 +196,7 @@ export default function OtherIncomePage() {
 
   const inputClass = "h-9 text-sm bg-white/[0.04] border-white/[0.08] text-white/80 placeholder:text-white/30 focus-visible:border-[#e0a84a]/40 focus-visible:ring-[#e0a84a]/20";
 
+  if (!authorized) return null;
   return (
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

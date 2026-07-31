@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -38,6 +38,8 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/auth-context";
+import { getNavForRole, CLINICAL_ROLES, FULL_ACCESS_ROLES, ADMIN_ROLES } from "@/lib/role-access";
+import type { UserRole } from "@/lib/api-types";
 
 interface NotificationItem {
   id: string;
@@ -48,19 +50,18 @@ interface NotificationItem {
   created_at: string;
 }
 
-const navItems = [
-  { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
-  { label: "Patients", href: "/admin/patients", icon: Users },
-  { label: "Appointments", href: "/admin/appointments", icon: CalendarDays },
-  { label: "Billing", href: "/admin/billing", icon: Wallet },
-  { label: "Expenses", href: "/admin/expenses", icon: Receipt },
-  { label: "Internal Mail", href: "/admin/internal-mail", icon: Mail },
-  { label: "Other Income", href: "/admin/other-income", icon: Gift },
-  { label: "Staff", href: "/admin/staff", icon: Stethoscope },
-  { label: "Reports", href: "/admin/reports", icon: BarChart3 },
-  { label: "Settings", href: "/admin/settings", icon: Settings },
-  { label: "Profile", href: "/admin/profile", icon: UserCircle },
-];
+const ICON_MAP: Record<string, React.ElementType> = {
+  LayoutDashboard, Users, CalendarDays, Wallet, Receipt, Gift,
+  Mail, Stethoscope, BarChart3, Settings, UserCircle,
+};
+
+function getVisibleNav(role?: UserRole | null) {
+  return getNavForRole(role).map((item) => ({
+    label: item.label,
+    href: item.href,
+    icon: ICON_MAP[item.icon] || LayoutDashboard,
+  }));
+}
 
 function NotificationDropdown() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -153,6 +154,7 @@ export default function AdminLayout({
   const router = useRouter();
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const navItems = React.useMemo(() => getVisibleNav(user?.role as UserRole | null), [user?.role]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-gradient-to-br from-[#0a0f1a] via-[#0d1322] to-[#0f1a2e]">

@@ -18,6 +18,7 @@ import {
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useStaff, useCreateStaff } from "@/hooks/use-staff";
+import { useRoleGuard } from "@/hooks/use-role-guard";
 import type { Staff } from "@/lib/api-types";
 
 type StatusFilter = "all" | "on_duty" | "off_duty" | "on_leave";
@@ -51,6 +52,7 @@ function getInitials(name: string) {
 const roles = ["doctor", "nurse", "admin", "accountant", "super_admin"];
 
 export default function StaffPage() {
+  const { authorized } = useRoleGuard(["super_admin", "admin", "accountant"]);
   const { data: staffData, loading, refresh } = useStaff();
   const { mutate: createStaff, loading: creating } = useCreateStaff();
 
@@ -173,6 +175,7 @@ export default function StaffPage() {
     });
   }
 
+  if (!authorized) return null;
   return (
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

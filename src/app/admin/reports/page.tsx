@@ -13,6 +13,7 @@ import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { cn, formatCurrency } from "@/lib/utils";
+import { useRoleGuard } from "@/hooks/use-role-guard";
 import { useAppointments } from "@/hooks/use-appointments";
 import { usePatients } from "@/hooks/use-patients";
 import { useInvoices } from "@/hooks/use-billing";
@@ -42,6 +43,7 @@ function downloadCsv(filename: string, rows: string[][]) {
 }
 
 export default function ReportsPage() {
+  const { authorized } = useRoleGuard(["super_admin", "admin", "accountant"]);
   const { data: appointments, loading: aptLoading } = useAppointments();
   const { data: patients, loading: patLoading } = usePatients();
   const { data: invoices, loading: invLoading } = useInvoices();
@@ -175,6 +177,7 @@ export default function ReportsPage() {
     );
   }
 
+  if (!authorized) return null;
   return (
     <div className="space-y-5 print:p-0">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">

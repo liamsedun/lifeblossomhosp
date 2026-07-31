@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Stethoscope, PenLine, Trash2, Plus, KeyRound, Shield, ShieldOff } from "lucide-react";
+import { useRoleGuard } from "@/hooks/use-role-guard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +41,7 @@ function getInitials(name: string) {
 }
 
 export default function SettingsPage() {
+  const { authorized } = useRoleGuard(["super_admin"]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [loading, setLoading] = useState(true);
   const [editDoctor, setEditDoctor] = useState<Doctor | null>(null);
@@ -60,6 +62,7 @@ export default function SettingsPage() {
     loadDoctors();
   }, []);
 
+  if (!authorized) return null;
   return (
     <div className="space-y-6">
       <div>
