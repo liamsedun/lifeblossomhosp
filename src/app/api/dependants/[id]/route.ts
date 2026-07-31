@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import {
-  withAuth, ok, err, parseBody, ValidationError, resolveParam,
+  withAuth, ok, err, parseBody, ValidationError,
   resolvePatientId,
 } from "@/lib/api-utils";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -100,7 +100,7 @@ async function loadDependant(supabase: any, authUserId: string, dependantId: str
 
 // GET /api/dependants/:id
 export const GET = withAuth(async (req, supabase, authUserId, ctx) => {
-  const dependantId = await resolveParam(ctx.params.id);
+  const { id: dependantId } = await ctx.params;
   const { dependant, familyCode } = await loadDependant(supabase, authUserId, dependantId);
 
   // Outstanding bill summary (bills roll up to the primary account)
@@ -123,7 +123,7 @@ export const GET = withAuth(async (req, supabase, authUserId, ctx) => {
 
 // PUT /api/dependants/:id — update biodata (owner or staff)
 export const PUT = withAuth(async (req, supabase, authUserId, ctx) => {
-  const dependantId = await resolveParam(ctx.params.id);
+  const { id: dependantId } = await ctx.params;
   const body = await parseBody<{
     full_name?: string;
     date_of_birth?: string;
@@ -188,7 +188,7 @@ export const PUT = withAuth(async (req, supabase, authUserId, ctx) => {
 // DELETE /api/dependants/:id — owner (or admin) removes the dependant.
 // FK cascade removes their medical records, appointments, invoices & payments.
 export const DELETE = withAuth(async (req, supabase, authUserId, ctx) => {
-  const dependantId = await resolveParam(ctx.params.id);
+  const { id: dependantId } = await ctx.params;
   const { dependant } = await loadDependant(supabase, authUserId, dependantId);
 
   const svc = createServiceClient();
