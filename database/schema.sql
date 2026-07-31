@@ -137,6 +137,7 @@ CREATE TABLE patients (
   gender                  VARCHAR(10),
   blood_group             VARCHAR(5),
   genotype                VARCHAR(10),
+  medical_plan            VARCHAR(20) NOT NULL DEFAULT 'individual',
   height_cm               NUMERIC(5,1),
   weight_kg               NUMERIC(5,1),
   allergies               TEXT,

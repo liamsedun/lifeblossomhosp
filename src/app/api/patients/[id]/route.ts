@@ -45,6 +45,15 @@ export const PUT = withAuth(async (req, supabase, authUserId, context) => {
     "emergency_contact_name", "emergency_contact_phone", "emergency_contact_rel"] as const)
     if (body[k] !== undefined && body[k] !== "") patientFields[k] = body[k];
 
+  if (body.medical_plan !== undefined) {
+    const plan = String(body.medical_plan).toLowerCase().trim();
+    if (["individual", "family", "organisation", "hmo"].includes(plan)) {
+      patientFields.medical_plan = plan;
+    } else {
+      return err("medical_plan must be one of: individual, family, organisation, hmo", 400);
+    }
+  }
+
   const { data, error } = await svc.from("patients").update(patientFields).eq("id", id)
     .select("*, user:users(id, org_id, email, role, first_name, last_name, phone, avatar_url, is_active)").single();
   if (error) return err(error.message, 500);

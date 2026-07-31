@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect } from "react";
-import { Calendar, CreditCard, FileText, Zap, ArrowRight, Clock, CheckCircle, ChevronRight } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Calendar, CreditCard, FileText, Zap, ArrowRight, Clock, CheckCircle, ChevronRight, IdCard, Phone, User as UserIcon, HeartPulse } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Logo from "@/components/ui/logo";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
 import { useAppointmentStore } from "@/stores/appointment-store";
 import { usePaymentStore } from "@/stores/payment-store";
+import type { Patient } from "@/lib/api-types";
 
 function GlassCard({ children, href, className }: { children: React.ReactNode; href?: string; className?: string }) {
   const content = (
@@ -24,8 +25,133 @@ function GlassCard({ children, href, className }: { children: React.ReactNode; h
   return content;
 }
 
+// ─── Identity Card ──────────────────────────────────────────────
+
+interface OrgProfile {
+  name: string;
+  logo_url: string;
+  address: string;
+  email: string;
+}
+
+function IdentityCard({ patient, org }: { patient: Patient | null; org: OrgProfile }) {
+  const { user } = useAuth();
+  const fullName = user ? `${user.first_name} ${user.last_name}` : "Patient";
+  const initials = user ? `${user.first_name.charAt(0)}${user.last_name.charAt(0)}`.toUpperCase() : "PA";
+  const gender = patient?.gender
+    ? patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1).toLowerCase()
+    : "—";
+  const dob = patient?.date_of_birth
+    ? new Date(patient.date_of_birth).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+    : "—";
+  const plan = patient?.medical_plan
+    ? patient.medical_plan.charAt(0).toUpperCase() + patient.medical_plan.slice(1)
+    : "Individual";
+
+  const detailRow = (label: string, value: string) => (
+    <div className="flex items-center justify-between gap-3 py-1">
+      <span className="text-[10px] uppercase tracking-wider text-white/45 font-semibold">{label}</span>
+      <span className="text-xs font-semibold text-white text-right truncate">{value}</span>
+    </div>
+  );
+
+  return (
+    <GlassCard className="p-0 overflow-hidden">
+      <div className="flex items-center gap-2 px-4 pt-4">
+        <IdCard className="w-4 h-4 text-[#e0a84a]" />
+        <h3 className="text-sm font-semibold text-white">Identity Card</h3>
+      </div>
+
+      <div className="m-3 mt-2 rounded-2xl overflow-hidden bg-gradient-to-br from-[#0b2a4a] via-[#0e3a63] to-[#0d5f7a] border border-white/[0.08]">
+        {/* Hospital header */}
+        <div className="flex items-center gap-2.5 px-4 pt-4">
+          <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center shrink-0 shadow-md overflow-hidden">
+            <img
+              src={org.logo_url || "/images/hosp-logo/life-blossom-logo.png"}
+              alt=""
+              className="w-full h-full object-contain"
+            />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-white leading-tight truncate">{org.name || "Life Blossom Hospital"}</p>
+            {org.address && <p className="text-[10px] text-white/60 truncate">{org.address}</p>}
+            {org.email && <p className="text-[10px] text-white/60 truncate">{org.email}</p>}
+          </div>
+        </div>
+
+        {/* Patient */}
+        <div className="flex gap-3 px-4 pt-4">
+          <div className="w-16 h-16 rounded-xl bg-white/[0.06] border border-white/10 flex items-center justify-center overflow-hidden shrink-0 ring-1 ring-[#e0a84a]/30">
+            {user?.avatar_url ? (
+              <img src={user.avatar_url} alt="Patient photo" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-lg font-bold text-[#e0a84a]">{initials}</span>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-base font-bold text-white leading-tight truncate">{fullName}</p>
+            <p className="text-[11px] text-[#e0a84a] font-semibold mt-0.5">
+              Patient No: {patient?.patient_number || "—"}
+            </p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#e0a84a]/15 border border-[#e0a84a]/25 text-[10px] font-semibold text-[#e0a84a] capitalize">
+                <HeartPulse className="w-3 h-3" />{plan}
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/[0.06] border border-white/10 text-[10px] font-medium text-white/70 capitalize">
+                <UserIcon className="w-3 h-3" />{gender}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Details */}
+        <div className="px-4 pt-3 pb-1">
+          <div className="rounded-xl bg-black/20 border border-white/[0.06] px-3 py-1.5">
+            {detailRow("Phone", user?.phone || "—")}
+            {detailRow("Date of Birth", dob)}
+          </div>
+        </div>
+
+        {/* Footer tagline */}
+        <div className="mt-3 px-4 py-2.5 bg-[#e0a84a]">
+          <p className="text-[11px] font-semibold text-[#0a0f1a] text-center leading-snug">
+            Your Health, Our Priority – Where Care Meets Cure.
+          </p>
+        </div>
+      </div>
+    </GlassCard>
+  );
+}
+
 export default function PatientDashboard() {
   const { user } = useAuth();
+  const [patient, setPatient] = useState<Patient | null>(null);
+  const [org, setOrg] = useState<OrgProfile>({
+    name: "Life Blossom Hospital",
+    logo_url: "/images/hosp-logo/life-blossom-logo.png",
+    address: "",
+    email: "",
+  });
+
+  useEffect(() => {
+    fetch("/api/patients/me")
+      .then((r) => r.json())
+      .then((json) => { if (json.success) setPatient(json.data); })
+      .catch(() => {});
+    fetch("/api/org")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success) {
+          setOrg({
+            name: json.data.name || "Life Blossom Hospital",
+            logo_url: json.data.logo_url || "/images/hosp-logo/life-blossom-logo.png",
+            address: json.data.address || "",
+            email: json.data.email || "",
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const appointments = useAppointmentStore((s) => s.appointments);
   const loadingAppts = useAppointmentStore((s) => s.loading);
@@ -184,6 +310,8 @@ export default function PatientDashboard() {
           })}
         </div>
       </GlassCard>
+
+      <IdentityCard patient={patient} org={org} />
 
       <GlassCard>
         <div className="flex items-center justify-between mb-3">

@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import {
   User, Mail, Phone, Calendar, Droplets, AlertTriangle,
-  Bell, Moon, Lock, LogOut, ChevronRight, Camera, Check, X, Pencil,
+  Bell, Moon, Lock, LogOut, ChevronRight, Camera, Check, X, Pencil, CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
@@ -77,6 +77,7 @@ export default function ProfilePage() {
     { label: "Email", value: user?.email || "...", icon: Mail, field: "email" },
     { label: "Phone", value: user?.phone || "Not provided", icon: Phone, field: "phone" },
     { label: "Date of Birth", value: patient?.date_of_birth ? new Date(patient.date_of_birth).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "Not provided", icon: Calendar, field: "date_of_birth" },
+    { label: "Medical Plan", value: patient?.medical_plan ? patient.medical_plan.charAt(0).toUpperCase() + patient.medical_plan.slice(1) : "Individual", icon: CreditCard, field: "medical_plan" },
     { label: "Blood Group", value: patient?.blood_group || "Not provided", icon: Droplets },
     { label: "Allergies", value: "Ask your doctor", icon: AlertTriangle },
   ];
@@ -108,6 +109,10 @@ export default function ProfilePage() {
         endpoint = `/api/patients/${patient!.id}`;
         body = { date_of_birth: editValue };
         label = "Date of Birth";
+      } else if (editingField === "medical_plan") {
+        endpoint = `/api/patients/${patient!.id}`;
+        body = { medical_plan: editValue };
+        label = "Medical Plan";
       } else if (editingField === "full_name") {
         endpoint = "/api/auth/profile";
         const parts = editValue.trim().split(" ");
@@ -294,6 +299,27 @@ export default function ProfilePage() {
               <div className="flex-1 min-w-0">
                 <p className="text-[11px] text-white/40">{item.label}</p>
                 {editingField === item.field ? (
+                  editingField === "medical_plan" ? (
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <select
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        className="flex-1 h-8 text-sm bg-white/[0.04] border border-white/[0.08] rounded-lg px-2 text-white focus:outline-none focus:ring-2 focus:ring-[#e0a84a]/30 [color-scheme:dark]"
+                        autoFocus
+                      >
+                        <option value="individual">Individual</option>
+                        <option value="family">Family</option>
+                        <option value="organisation">Organisation</option>
+                        <option value="hmo">HMO</option>
+                      </select>
+                      <button onClick={saveEdit} disabled={saving} className="p-1 text-emerald-400 hover:text-emerald-300 shrink-0">
+                        <Check className="w-4 h-4" />
+                      </button>
+                      <button onClick={cancelEdit} className="p-1 text-white/40 hover:text-white/70 shrink-0">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
                   <div className="flex items-center gap-1 mt-0.5">
                     <input
                       type={item.field === "date_of_birth" ? "date" : item.field === "email" ? "email" : "tel"}
@@ -309,6 +335,7 @@ export default function ProfilePage() {
                       <X className="w-4 h-4" />
                     </button>
                   </div>
+                  )
                 ) : (
                   <div className="flex items-center gap-1.5">
                     <p className="text-sm text-white/80 font-medium truncate">
@@ -323,6 +350,8 @@ export default function ProfilePage() {
                     let initial = "";
                     if (item.field === "date_of_birth") {
                       initial = patient?.date_of_birth ? patient.date_of_birth.slice(0, 10) : "";
+                    } else if (item.field === "medical_plan") {
+                      initial = patient?.medical_plan || "individual";
                     } else {
                       initial = item.value === "Not provided" || item.value === "..." ? "" : item.value;
                     }
