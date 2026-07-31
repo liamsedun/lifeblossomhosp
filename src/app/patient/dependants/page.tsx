@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Users, UserPlus, X, AlertTriangle, ShieldCheck,
-  Calendar, Droplet, Dna, ChevronRight, Baby, Heart,
+  Calendar, Droplet, Dna, ChevronRight, Baby, Heart, Camera,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
@@ -62,15 +62,35 @@ function AddDependantModal({ open, onClose, onCreated, maxReached }: {
     full_name: "", date_of_birth: "", sex: "",
     blood_group: "", genotype: "", allergies: "", phone: "", relationship: "",
   });
+  const [avatar, setAvatar] = useState("");
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (open) {
       setForm({ full_name: "", date_of_birth: "", sex: "", blood_group: "", genotype: "", allergies: "", phone: "", relationship: "" });
+      setAvatar("");
       setError("");
     }
   }, [open]);
+
+  const onAvatarPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!/^image\/(jpeg|png|webp|gif)$/.test(file.type)) {
+      setError("Unsupported image type — use JPG, PNG, WebP or GIF");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setError("Photo must be 2 MB or smaller");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setAvatar(String(reader.result || ""));
+    reader.readAsDataURL(file);
+  };
 
   if (!open) return null;
 
@@ -97,6 +117,7 @@ function AddDependantModal({ open, onClose, onCreated, maxReached }: {
           allergies: form.allergies.trim() || undefined,
           phone: form.phone.trim() || undefined,
           relationship: form.relationship ? form.relationship.toLowerCase() : undefined,
+          avatar: avatar || undefined,
         }),
       });
       const json = await res.json();
@@ -140,6 +161,36 @@ function AddDependantModal({ open, onClose, onCreated, maxReached }: {
         </div>
 
         <div className="space-y-4 mt-4">
+          <Field label="Photo (optional)">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                className="relative w-16 h-16 rounded-2xl border border-dashed border-white/[0.15] bg-white/[0.03] overflow-hidden flex items-center justify-center group hover:border-[#e0a84a]/50 transition-all"
+              >
+                {avatar ? (
+                  <img src={avatar} alt="Dependant photo preview" className="w-full h-full object-cover" />
+                ) : (
+                  <Camera className="w-5 h-5 text-white/40 group-hover:text-[#e0a84a] transition-colors" />
+                )}
+                <span className="absolute bottom-0 inset-x-0 bg-black/50 text-[9px] text-white/80 py-0.5 text-center font-medium">
+                  {avatar ? "Change" : "Add"}
+                </span>
+              </button>
+              <div className="text-xs text-white/40 space-y-0.5">
+                <p>Tap to choose a photo</p>
+                <p className="text-white/25">JPG, PNG, WebP or GIF · max 2 MB</p>
+              </div>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+                onChange={onAvatarPick}
+              />
+            </div>
+          </Field>
+
           <Field label="Full Name *">
             <input className={inputCls} value={form.full_name} onChange={set("full_name")} placeholder="e.g. Adaeze Edun" />
           </Field>
@@ -334,8 +385,12 @@ export default function DependantsPage() {
                 <div className="absolute top-0 right-0 w-24 h-24 translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-[#e0a84a]/[0.05] to-transparent" />
 
                 <div className="flex items-start justify-between gap-2">
-                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#0b2a4a] to-[#0d5f7a] border border-white/10 flex items-center justify-center text-sm font-bold text-[#e0a84a] shrink-0">
-                    {d.full_name.charAt(0).toUpperCase()}
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#0b2a4a] to-[#0d5f7a] border border-white/10 overflow-hidden flex items-center justify-center text-sm font-bold text-[#e0a84a] shrink-0">
+                    {d.avatar_url ? (
+                      <img src={d.avatar_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      d.full_name.charAt(0).toUpperCase()
+                    )}
                   </div>
                   <span className={cn(
                     "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold border",

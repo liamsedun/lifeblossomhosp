@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Calendar, CreditCard, FileText, Zap, ArrowRight, Clock, CheckCircle, ChevronRight, IdCard, Phone, User as UserIcon, HeartPulse, Users, AlertTriangle } from "lucide-react";
+import { Calendar, CreditCard, FileText, ArrowRight, Clock, CheckCircle, ChevronRight, IdCard, Phone, User as UserIcon, HeartPulse, Users, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Logo from "@/components/ui/logo";
 import Link from "next/link";
@@ -240,15 +240,6 @@ export default function PatientDashboard() {
       gradient: "from-emerald-500/20 via-emerald-400/10 to-transparent",
       iconBg: "bg-emerald-500/10 text-emerald-400",
       href: "/patient/payments",
-    },
-    {
-      title: "Quick Actions",
-      value: "What would you like?",
-      sub: "Book, Pay, Chat, Records, Messages, Bills",
-      icon: Zap,
-      gradient: "from-blue-500/20 via-blue-400/10 to-transparent",
-      iconBg: "bg-blue-500/10 text-blue-400",
-      href: "/patient",
     },
   ];
 

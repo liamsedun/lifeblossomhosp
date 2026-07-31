@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, AlertTriangle, Calendar, CreditCard, FileText, HeartPulse,
   Pencil, Trash2, X, Droplet, Dna, Phone, Users, Stethoscope,
-  CheckCircle2, Clock, PlusCircle, Wallet, ShieldCheck, Baby, Heart,
+  CheckCircle2, Clock, PlusCircle, Wallet, ShieldCheck, Baby, Heart, Camera,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Dependant, MedicalRecord, Invoice, Appointment } from "@/lib/api-types";
@@ -193,8 +193,12 @@ export default function DependantProfilePage() {
       <GlassCard className="p-0 overflow-hidden">
         <div className="bg-gradient-to-br from-[#0b2a4a] via-[#0e3a63] to-[#0d5f7a] p-4">
           <div className="flex items-center gap-3">
-            <div className="w-14 h-14 rounded-2xl bg-white/[0.08] border border-white/10 flex items-center justify-center text-lg font-bold text-[#e0a84a] shrink-0">
-              {dependant?.full_name?.charAt(0).toUpperCase() || "?"}
+            <div className="w-14 h-14 rounded-2xl bg-white/[0.08] border border-white/10 overflow-hidden flex items-center justify-center text-lg font-bold text-[#e0a84a] shrink-0">
+              {dependant?.avatar_url ? (
+                <img src={dependant.avatar_url} alt="" className="w-full h-full object-cover" />
+              ) : (
+                dependant?.full_name?.charAt(0).toUpperCase() || "?"
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-base font-bold text-white truncate">{dependant?.full_name || "Loading..."}</p>
@@ -483,6 +487,8 @@ function EditDependantModal({ open, dependant, onClose, onSaved }: {
     full_name: "", date_of_birth: "", sex: "", blood_group: "", genotype: "",
     allergies: "", phone: "", relationship: "",
   });
+  const [avatar, setAvatar] = useState("");
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -498,9 +504,27 @@ function EditDependantModal({ open, dependant, onClose, onSaved }: {
         phone: dependant.phone || "",
         relationship: dependant.relationship || "",
       });
+      setAvatar(dependant.avatar_url || "");
       setError("");
     }
   }, [open, dependant]);
+
+  const onAvatarPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!/^image\/(jpeg|png|webp|gif)$/.test(file.type)) {
+      setError("Unsupported image type — use JPG, PNG, WebP or GIF");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setError("Photo must be 2 MB or smaller");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setAvatar(String(reader.result || ""));
+    reader.readAsDataURL(file);
+  };
 
   if (!open || !dependant) return null;
 
@@ -527,6 +551,7 @@ function EditDependantModal({ open, dependant, onClose, onSaved }: {
           allergies: form.allergies.trim() || undefined,
           phone: form.phone.trim() || undefined,
           relationship: form.relationship ? form.relationship.toLowerCase() : undefined,
+          avatar: avatar === (dependant.avatar_url || "") ? undefined : (avatar || null),
         }),
       });
       const json = await res.json();
@@ -542,6 +567,36 @@ function EditDependantModal({ open, dependant, onClose, onSaved }: {
   return (
     <ModalShell title="Edit Dependant" onClose={onClose}>
       <div className="space-y-4">
+        <div>
+          <label className="text-xs font-medium text-white/50 mb-1.5 block">Photo (optional)</label>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              className="relative w-16 h-16 rounded-2xl border border-dashed border-white/[0.15] bg-white/[0.03] overflow-hidden flex items-center justify-center group hover:border-[#e0a84a]/50 transition-all"
+            >
+              {avatar ? (
+                <img src={avatar} alt="Dependant photo preview" className="w-full h-full object-cover" />
+              ) : (
+                <Camera className="w-5 h-5 text-white/40 group-hover:text-[#e0a84a] transition-colors" />
+              )}
+              <span className="absolute bottom-0 inset-x-0 bg-black/50 text-[9px] text-white/80 py-0.5 text-center font-medium">
+                {avatar ? "Change" : "Add"}
+              </span>
+            </button>
+            <div className="text-xs text-white/40 space-y-0.5">
+              <p>Tap to choose a photo</p>
+              <p className="text-white/25">JPG, PNG, WebP or GIF · max 2 MB</p>
+            </div>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="hidden"
+              onChange={onAvatarPick}
+            />
+          </div>
+        </div>
         <div>
           <label className="text-xs font-medium text-white/50 mb-1.5 block">Full Name *</label>
           <input className={inputCls} value={form.full_name} onChange={set("full_name")} />

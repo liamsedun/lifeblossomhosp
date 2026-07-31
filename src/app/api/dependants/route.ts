@@ -4,6 +4,7 @@ import {
   resolvePatientId, resolveOrgId,
 } from "@/lib/api-utils";
 import { createServiceClient } from "@/lib/supabase/server";
+import { storeDependantAvatar } from "@/lib/dependant-avatar";
 import type { Dependant } from "@/lib/api-types";
 
 const MAX_DEPENDANTS = 5;
@@ -146,6 +147,7 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
     allergies?: string;
     phone?: string;
     relationship?: string;
+    avatar?: string;
   }>(req);
 
   const fullName = (body.full_name || "").trim();
@@ -239,6 +241,19 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   if (patientError) {
     await svc.from("users").delete().eq("id", placeholder.id);
     return err(patientError.message, 500);
+  }
+
+  // Optional photo → save file and attach it to the dependant's placeholder user
+  if (body.avatar) {
+    const avatarUrl = await storeDependantAvatar(body.avatar, `dep-${created.id}`);
+    const { error: avatarError } = await svc.from("users").update({ avatar_url: avatarUrl }).eq("id", placeholder.id);
+    if (avatarError) return err(avatarError.message, 500);
+    const { data: final } = await svc
+      .from("patients")
+      .select("*, user:users(id, first_name, last_name, phone, avatar_url)")
+      .eq("id", created.id)
+      .single();
+    return ok(wrapDependant(final as PatientRow, primary.patient_number), 201);
   }
 
   return ok(wrapDependant(created as PatientRow, primary.patient_number), 201);

@@ -4,6 +4,7 @@ import {
   resolvePatientId,
 } from "@/lib/api-utils";
 import { createServiceClient } from "@/lib/supabase/server";
+import { storeDependantAvatar } from "@/lib/dependant-avatar";
 import type { Dependant } from "@/lib/api-types";
 
 const VALID_RELATIONSHIPS = ["child", "spouse", "parent", "sibling", "grandparent", "other"];
@@ -133,6 +134,7 @@ export const PUT = withAuth(async (req, supabase, authUserId, ctx) => {
     allergies?: string;
     phone?: string;
     relationship?: string;
+    avatar?: string | null;
   }>(req);
 
   const { dependant, familyCode } = await loadDependant(supabase, authUserId, dependantId);
@@ -171,6 +173,11 @@ export const PUT = withAuth(async (req, supabase, authUserId, ctx) => {
     userPatch.last_name = parts.slice(1).join(" ") || "";
   }
   if (body.phone !== undefined) userPatch.phone = body.phone?.trim() || null;
+  if (body.avatar === null) userPatch.avatar_url = null;
+  else if (body.avatar !== undefined) {
+    const avatarUrl = await storeDependantAvatar(body.avatar, `dep-${dependantId}`);
+    userPatch.avatar_url = avatarUrl;
+  }
   if (Object.keys(userPatch).length) {
     const { error: userError } = await svc.from("users").update(userPatch).eq("id", dependant.user_id);
     if (userError) return err(userError.message, 500);
