@@ -45,6 +45,33 @@ export const PUT = withAuth(async (req, supabase, authUserId, context) => {
     "emergency_contact_name", "emergency_contact_phone", "emergency_contact_rel"] as const)
     if (body[k] !== undefined && body[k] !== "") patientFields[k] = body[k];
 
+  if (body.blood_group !== undefined && body.blood_group !== "") {
+    const bg = String(body.blood_group).toUpperCase().trim();
+    if (["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].includes(bg)) {
+      patientFields.blood_group = bg;
+    } else if (body.blood_group !== "") {
+      return err("blood_group must be one of: A+, A-, B+, B-, AB+, AB-, O+, O-", 400);
+    }
+  }
+
+  if (body.genotype !== undefined && body.genotype !== "") {
+    const gt = String(body.genotype).toUpperCase().trim();
+    if (["AA", "AS", "SS", "AC", "SC", "CC"].includes(gt)) {
+      patientFields.genotype = gt;
+    } else if (body.genotype !== "") {
+      return err("genotype must be one of: AA, AS, SS, AC, SC, CC", 400);
+    }
+  }
+
+  if (body.marital_status !== undefined && body.marital_status !== "") {
+    const ms = String(body.marital_status).toLowerCase().trim();
+    if (["single", "married", "divorced", "widowed"].includes(ms)) {
+      patientFields.marital_status = ms;
+    } else if (body.marital_status !== "") {
+      return err("marital_status must be one of: single, married, divorced, widowed", 400);
+    }
+  }
+
   if (body.medical_plan !== undefined) {
     const plan = String(body.medical_plan).toLowerCase().trim();
     if (["individual", "family", "organisation", "hmo"].includes(plan)) {

@@ -135,6 +135,7 @@ CREATE TABLE patients (
   patient_number          VARCHAR(50) NOT NULL,
   date_of_birth           DATE,
   gender                  VARCHAR(10),
+  marital_status          VARCHAR(20) NOT NULL DEFAULT 'single',
   blood_group             VARCHAR(5),
   genotype                VARCHAR(10),
   medical_plan            VARCHAR(20) NOT NULL DEFAULT 'individual',

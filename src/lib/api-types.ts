@@ -50,7 +50,9 @@ export interface Patient {
   patient_number: string;
   date_of_birth: string | null;
   gender: string | null;
+  marital_status?: string;
   blood_group: string | null;
+  genotype?: string;
   medical_plan?: string;
   address: string | null;
   city: string | null;

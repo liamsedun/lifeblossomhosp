@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import {
-  User, Mail, Phone, Calendar, Droplets, AlertTriangle,
+  User, Mail, Phone, Calendar, Droplets, AlertTriangle, Dna, Heart,
   Bell, Moon, Lock, LogOut, ChevronRight, Camera, Check, X, Pencil, CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -77,10 +77,26 @@ export default function ProfilePage() {
     { label: "Email", value: user?.email || "...", icon: Mail, field: "email" },
     { label: "Phone", value: user?.phone || "Not provided", icon: Phone, field: "phone" },
     { label: "Date of Birth", value: patient?.date_of_birth ? new Date(patient.date_of_birth).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "Not provided", icon: Calendar, field: "date_of_birth" },
+    { label: "Marital Status", value: patient?.marital_status ? patient.marital_status.charAt(0).toUpperCase() + patient.marital_status.slice(1) : "Single", icon: Heart, field: "marital_status" },
+    { label: "Blood Group", value: patient?.blood_group || "Not provided", icon: Droplets, field: "blood_group" },
+    { label: "Genotype", value: patient?.genotype || "Not provided", icon: Dna, field: "genotype" },
     { label: "Medical Plan", value: patient?.medical_plan ? patient.medical_plan.charAt(0).toUpperCase() + patient.medical_plan.slice(1) : "Individual", icon: CreditCard, field: "medical_plan" },
-    { label: "Blood Group", value: patient?.blood_group || "Not provided", icon: Droplets },
     { label: "Allergies", value: "Ask your doctor", icon: AlertTriangle },
   ];
+
+  const selectOptions: Record<string, string[]> = {
+    marital_status: ["single", "married", "divorced", "widowed"],
+    blood_group: ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"],
+    genotype: ["AA", "AS", "SS", "AC", "SC", "CC"],
+    medical_plan: ["individual", "family", "organisation", "hmo"],
+  };
+
+  const selectLabels: Record<string, string> = {
+    marital_status: "Marital Status",
+    blood_group: "Blood Group",
+    genotype: "Genotype",
+    medical_plan: "Medical Plan",
+  };
 
   const startEdit = (field: string, currentValue: string) => {
     setEditingField(field);
@@ -109,10 +125,10 @@ export default function ProfilePage() {
         endpoint = `/api/patients/${patient!.id}`;
         body = { date_of_birth: editValue };
         label = "Date of Birth";
-      } else if (editingField === "medical_plan") {
+      } else if (["marital_status", "blood_group", "genotype", "medical_plan"].includes(editingField)) {
         endpoint = `/api/patients/${patient!.id}`;
-        body = { medical_plan: editValue };
-        label = "Medical Plan";
+        body = { [editingField]: editValue };
+        label = selectLabels[editingField] || editingField;
       } else if (editingField === "full_name") {
         endpoint = "/api/auth/profile";
         const parts = editValue.trim().split(" ");
@@ -299,7 +315,7 @@ export default function ProfilePage() {
               <div className="flex-1 min-w-0">
                 <p className="text-[11px] text-white/40">{item.label}</p>
                 {editingField === item.field ? (
-                  editingField === "medical_plan" ? (
+                  selectOptions[editingField] ? (
                     <div className="flex items-center gap-1 mt-0.5">
                       <select
                         value={editValue}
@@ -307,10 +323,11 @@ export default function ProfilePage() {
                         className="flex-1 h-8 text-sm bg-white/[0.04] border border-white/[0.08] rounded-lg px-2 text-white focus:outline-none focus:ring-2 focus:ring-[#e0a84a]/30 [color-scheme:dark]"
                         autoFocus
                       >
-                        <option value="individual">Individual</option>
-                        <option value="family">Family</option>
-                        <option value="organisation">Organisation</option>
-                        <option value="hmo">HMO</option>
+                        {selectOptions[editingField].map((opt) => (
+                          <option key={opt} value={opt} className="capitalize">
+                            {opt === "individual" ? "Individual" : opt === "organisation" ? "Organisation" : opt.charAt(0).toUpperCase() + opt.slice(1)}
+                          </option>
+                        ))}
                       </select>
                       <button onClick={saveEdit} disabled={saving} className="p-1 text-emerald-400 hover:text-emerald-300 shrink-0">
                         <Check className="w-4 h-4" />
@@ -350,6 +367,12 @@ export default function ProfilePage() {
                     let initial = "";
                     if (item.field === "date_of_birth") {
                       initial = patient?.date_of_birth ? patient.date_of_birth.slice(0, 10) : "";
+                    } else if (item.field === "marital_status") {
+                      initial = patient?.marital_status || "single";
+                    } else if (item.field === "blood_group") {
+                      initial = patient?.blood_group || "A+";
+                    } else if (item.field === "genotype") {
+                      initial = patient?.genotype || "AA";
                     } else if (item.field === "medical_plan") {
                       initial = patient?.medical_plan || "individual";
                     } else {

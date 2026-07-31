@@ -27,14 +27,15 @@ import type { Patient } from "@/lib/api-types";
 interface PatientForm {
   email: string; password: string; first_name: string; last_name: string;
   phone: string; gender: string; date_of_birth: string; blood_group: string;
+  genotype: string; marital_status: string;
   address: string; city: string; state: string;
   emergency_contact_name: string; emergency_contact_phone: string;
 }
 
 const emptyForm: PatientForm = {
   email: "", password: "", first_name: "", last_name: "", phone: "",
-  gender: "", date_of_birth: "", blood_group: "", address: "",
-  city: "", state: "", emergency_contact_name: "", emergency_contact_phone: "",
+  gender: "", date_of_birth: "", blood_group: "", genotype: "", marital_status: "",
+  address: "", city: "", state: "", emergency_contact_name: "", emergency_contact_phone: "",
 };
 
 function getInitials(name: string) {
@@ -42,6 +43,8 @@ function getInitials(name: string) {
 }
 
 const bloodGroups = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+const genotypes = ["AA", "AS", "SS", "AC", "SC", "CC"];
+const maritalStatuses = ["single", "married", "divorced", "widowed"];
 
 export default function PatientsPage() {
   const router = useRouter();
@@ -118,7 +121,9 @@ export default function PatientsPage() {
       first_name: p.user?.first_name || "", last_name: p.user?.last_name || "",
       phone: p.user?.phone || "", gender: p.gender || "",
       date_of_birth: p.date_of_birth?.split("T")[0] || "",
-      blood_group: p.blood_group || "", address: p.address || "",
+      blood_group: p.blood_group || "", genotype: p.genotype || "",
+      marital_status: p.marital_status || "",
+      address: p.address || "",
       city: p.city || "", state: p.state || "",
       emergency_contact_name: p.emergency_contact_name || "",
       emergency_contact_phone: p.emergency_contact_phone || "",
@@ -297,6 +302,14 @@ export default function PatientsPage() {
                     <p className="font-medium text-white">{selectedPatient.blood_group || "—"}</p>
                   </div>
                   <div>
+                    <p className="text-white/40 text-xs">Genotype</p>
+                    <p className="font-medium text-white">{selectedPatient.genotype || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-white/40 text-xs">Marital Status</p>
+                    <p className="font-medium text-white capitalize">{capitalize(selectedPatient.marital_status)}</p>
+                  </div>
+                  <div>
                     <p className="text-white/40 text-xs">Status</p>
                     <Badge className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Active</Badge>
                   </div>
@@ -398,6 +411,26 @@ export default function PatientsPage() {
                   ))}
                 </select>
               </div>
+              <div>
+                <label className="block text-xs font-medium text-white/50 mb-1">Genotype</label>
+                <select value={form.genotype} onChange={(e) => setForm({ ...form, genotype: e.target.value })}
+                  className="flex h-10 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white">
+                  <option value="" className="bg-[#0d1322]">Select</option>
+                  {genotypes.map((g) => (
+                    <option key={g} value={g} className="bg-[#0d1322]">{g}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-white/50 mb-1">Marital Status</label>
+              <select value={form.marital_status} onChange={(e) => setForm({ ...form, marital_status: e.target.value })}
+                className="flex h-10 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white">
+                <option value="" className="bg-[#0d1322]">Select</option>
+                {maritalStatuses.map((m) => (
+                  <option key={m} value={m} className="bg-[#0d1322] capitalize">{m}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-xs font-medium text-white/50 mb-1">Address</label>
@@ -489,6 +522,28 @@ export default function PatientsPage() {
                   <option key={bg} value={bg} className="bg-[#0d1322]">{bg}</option>
                 ))}
               </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-white/50 mb-1">Genotype</label>
+                <select value={form.genotype} onChange={(e) => setForm({ ...form, genotype: e.target.value })}
+                  className="flex h-10 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white">
+                  <option value="" className="bg-[#0d1322]">Select</option>
+                  {genotypes.map((g) => (
+                    <option key={g} value={g} className="bg-[#0d1322]">{g}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-white/50 mb-1">Marital Status</label>
+                <select value={form.marital_status} onChange={(e) => setForm({ ...form, marital_status: e.target.value })}
+                  className="flex h-10 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white">
+                  <option value="" className="bg-[#0d1322]">Select</option>
+                  {maritalStatuses.map((m) => (
+                    <option key={m} value={m} className="bg-[#0d1322] capitalize">{m}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div>
               <label className="block text-xs font-medium text-white/50 mb-1">Address</label>

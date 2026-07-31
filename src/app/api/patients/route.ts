@@ -80,7 +80,7 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   const patientFields: Record<string, any> = {
     org_id: orgId, user_id: authData.user.id, patient_number: patientNumber,
   };
-  for (const k of ["date_of_birth", "gender", "blood_group", "address", "city", "state",
+  for (const k of ["date_of_birth", "gender", "blood_group", "genotype", "marital_status", "address", "city", "state",
     "emergency_contact_name", "emergency_contact_phone"] as const)
     if (body[k] !== undefined && body[k] !== "") patientFields[k] = body[k];
 
