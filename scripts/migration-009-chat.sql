@@ -52,10 +52,20 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_unread ON chat_messages(chat_id, is
 CREATE INDEX IF NOT EXISTS idx_chat_presence_org ON chat_presence(org_id, last_seen_at DESC);
 
 -- ── 6. Realtime publication (enables client-side live updates) ──
+-- Idempotent: only ADD tables that aren't already members.
 DO $$ BEGIN
-  ALTER PUBLICATION supabase_realtime ADD TABLE chat_messages;
-  ALTER PUBLICATION supabase_realtime ADD TABLE chat_presence;
-EXCEPTION WHEN undefined_object THEN NULL;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'chat_messages'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE chat_messages;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'chat_presence'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE chat_presence;
+  END IF;
 END $$;
 
 -- ── 7. RLS ─────────────────────────────────────────────────────
