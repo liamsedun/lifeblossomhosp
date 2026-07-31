@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Calendar, CreditCard, FileText, Zap, ArrowRight, Clock, CheckCircle, ChevronRight, IdCard, Phone, User as UserIcon, HeartPulse } from "lucide-react";
+import { Calendar, CreditCard, FileText, Zap, ArrowRight, Clock, CheckCircle, ChevronRight, IdCard, Phone, User as UserIcon, HeartPulse, Users, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Logo from "@/components/ui/logo";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
 import { useAppointmentStore } from "@/stores/appointment-store";
 import { usePaymentStore } from "@/stores/payment-store";
-import type { Patient } from "@/lib/api-types";
+import type { Patient, Dependant } from "@/lib/api-types";
 
 function GlassCard({ children, href, className }: { children: React.ReactNode; href?: string; className?: string }) {
   const content = (
@@ -126,6 +126,7 @@ function IdentityCard({ patient, org }: { patient: Patient | null; org: OrgProfi
 export default function PatientDashboard() {
   const { user } = useAuth();
   const [patient, setPatient] = useState<Patient | null>(null);
+  const [dependants, setDependants] = useState<Dependant[]>([]);
   const [org, setOrg] = useState<OrgProfile>({
     name: "Life Blossom Hospital",
     logo_url: "/images/hosp-logo/life-blossom-logo.png",
@@ -137,6 +138,10 @@ export default function PatientDashboard() {
     fetch("/api/patients/me")
       .then((r) => r.json())
       .then((json) => { if (json.success) setPatient(json.data); })
+      .catch(() => {});
+    fetch("/api/dependants")
+      .then((r) => r.json())
+      .then((json) => { if (json.success) setDependants(json.data.dependants || []); })
       .catch(() => {});
     fetch("/api/org")
       .then((r) => r.json())
@@ -176,6 +181,9 @@ export default function PatientDashboard() {
   );
   const pendingInvoices = invoices?.filter((inv) => inv.status === "pending" || inv.status === "partially_paid");
   const outstandingTotal = pendingInvoices?.reduce((sum, inv) => sum + inv.total_amount, 0) ?? 0;
+  const dependantOutstanding = dependants.reduce((sum, d) => sum + d.outstanding, 0);
+  const familyOutstanding = outstandingTotal + dependantOutstanding;
+  const needsAttentionCount = dependants.filter((d) => d.status === "needs_attention").length;
   const sortedPayments = payments?.slice().sort(
     (a, b) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime()
   );
@@ -206,12 +214,23 @@ export default function PatientDashboard() {
     },
     {
       title: "Outstanding Balance",
-      value: loading ? "..." : `₦${outstandingTotal.toLocaleString()}`,
-      sub: loading ? "" : `${pendingInvoices?.length ?? 0} pending invoice(s)`,
+      value: loading ? "..." : `₦${familyOutstanding.toLocaleString()}`,
+      sub: loading ? "" : `${(pendingInvoices?.length ?? 0) + dependants.reduce((s, d) => s + d.pending_invoices, 0)} pending invoice(s)`,
       icon: CreditCard,
       gradient: "from-rose-500/20 via-rose-400/10 to-transparent",
       iconBg: "bg-rose-500/10 text-rose-400",
       href: "/patient/payments",
+    },
+    {
+      title: "Dependants",
+      value: loading ? "..." : `${dependants.length} dependant${dependants.length === 1 ? "" : "s"}`,
+      sub: loading ? "" : needsAttentionCount > 0
+        ? `${needsAttentionCount} need${needsAttentionCount === 1 ? "s" : ""} attention`
+        : "Manage family members under your care",
+      icon: Users,
+      gradient: "from-cyan-500/20 via-cyan-400/10 to-transparent",
+      iconBg: "bg-cyan-500/10 text-cyan-400",
+      href: "/patient/dependants",
     },
     {
       title: "Last Payment",
@@ -310,6 +329,39 @@ export default function PatientDashboard() {
           })}
         </div>
       </GlassCard>
+
+      {dependants.length > 0 && (
+        <GlassCard>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-white">Family</h3>
+            <Link href="/patient/dependants" className="text-xs text-[#e0a84a] hover:underline">
+              Manage
+            </Link>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            {dependants.map((d) => (
+              <Link
+                key={d.id}
+                href={`/patient/dependants/${d.id}`}
+                className={cn(
+                  "shrink-0 flex items-center gap-2 pl-2 pr-3 h-10 rounded-xl border transition-all",
+                  d.status === "needs_attention"
+                    ? "border-amber-500/30 bg-amber-500/[0.06] hover:border-amber-500/50"
+                    : "border-white/[0.08] bg-white/[0.03] hover:border-[#e0a84a]/40"
+                )}
+              >
+                <span className="w-6 h-6 rounded-full bg-[#e0a84a]/15 border border-[#e0a84a]/25 flex items-center justify-center text-[10px] font-bold text-[#e0a84a]">
+                  {d.full_name.charAt(0).toUpperCase()}
+                </span>
+                <span className="text-xs font-medium text-white/80 whitespace-nowrap">{d.full_name.split(" ")[0]}</span>
+                {d.status === "needs_attention" && (
+                  <AlertTriangle className="w-3 h-3 text-amber-400" />
+                )}
+              </Link>
+            ))}
+          </div>
+        </GlassCard>
+      )}
 
       <IdentityCard patient={patient} org={org} />
 

@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Calendar, Clock, ChevronDown, Check, ArrowLeft } from "lucide-react";
+import { Calendar, Clock, ChevronDown, Check, ArrowLeft, User as UserIcon, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
+import type { Dependant } from "@/lib/api-types";
 
 interface StaffDoctor {
   id: string;
@@ -52,7 +53,10 @@ export default function BookAppointmentPage() {
   const router = useRouter();
   const { user } = useAuth();
   const [doctors, setDoctors] = useState<StaffDoctor[]>([]);
+  const [dependants, setDependants] = useState<Dependant[]>([]);
   const [patientId, setPatientId] = useState<string | null>(null);
+  const selfPatientIdRef = useRef<string | null>(null);
+  const [patientLabel, setPatientLabel] = useState("Self");
   const [loadingDoctors, setLoadingDoctors] = useState(true);
   const [department, setDepartment] = useState("");
   const [doctorId, setDoctorId] = useState("");
@@ -78,10 +82,49 @@ export default function BookAppointmentPage() {
     fetch("/api/patients/me")
       .then((r) => r.json())
       .then((json) => {
-        if (json.success) setPatientId(json.data.id);
+        if (json.success) {
+          selfPatientIdRef.current = json.data.id;
+          if (!patientId) setPatientId(json.data.id);
+        }
       })
       .catch(console.error);
+
+    fetch("/api/dependants")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success) setDependants(json.data.dependants || []);
+      })
+      .catch(console.error);
+
+    // Support /patient/book?for=<dependantId> (from dependant profile)
+    const forId = new URLSearchParams(window.location.search).get("for");
+    if (forId) {
+      fetch("/api/dependants")
+        .then((r) => r.json())
+        .then((json) => {
+          if (json.success) {
+            const match = (json.data.dependants || []).find((d: Dependant) => d.id === forId);
+            if (match) {
+              setPatientId(match.id);
+              setPatientLabel(match.full_name);
+            }
+          }
+        })
+        .catch(() => {});
+    }
   }, []);
+
+  const selectPatient = (id: string, label: string) => {
+    setPatientId(id);
+    setPatientLabel(label);
+  };
+
+  const selectSelf = () => {
+    if (selfPatientIdRef.current) {
+      setPatientId(selfPatientIdRef.current);
+      setPatientLabel("Self");
+    }
+  };
 
   const handleSubmit = async () => {
     if (!patientId || !doctorId || !date || !timeSlot) return;
@@ -144,6 +187,42 @@ export default function BookAppointmentPage() {
       </div>
 
       <GlassCard className="space-y-5">
+        {dependants.length > 0 && (
+          <div>
+            <label className="text-xs font-medium text-white/50 mb-1.5 block">Booking For</label>
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+              <button
+                onClick={selectSelf}
+                disabled={!patientId}
+                className={cn(
+                  "shrink-0 inline-flex items-center gap-1.5 pl-2.5 pr-3.5 h-10 rounded-xl border text-xs font-medium transition-all",
+                  patientLabel === "Self"
+                    ? "border-[#e0a84a]/40 bg-[#e0a84a]/10 text-[#e0a84a]"
+                    : "border-white/[0.08] bg-white/[0.03] text-white/60 hover:border-[#e0a84a]/30"
+                )}
+              >
+                <UserIcon className="w-3.5 h-3.5" />
+                {user ? `${user.first_name} (Self)` : "Self"}
+              </button>
+              {dependants.map((d) => (
+                <button
+                  key={d.id}
+                  onClick={() => selectPatient(d.id, d.full_name)}
+                  className={cn(
+                    "shrink-0 inline-flex items-center gap-1.5 pl-2.5 pr-3.5 h-10 rounded-xl border text-xs font-medium transition-all",
+                    patientLabel === d.full_name
+                      ? "border-[#e0a84a]/40 bg-[#e0a84a]/10 text-[#e0a84a]"
+                      : "border-white/[0.08] bg-white/[0.03] text-white/60 hover:border-[#e0a84a]/30"
+                  )}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  {d.full_name.split(" ")[0]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="relative">
           <label className="text-xs font-medium text-white/50 mb-1.5 block">Department / Service</label>
           <button

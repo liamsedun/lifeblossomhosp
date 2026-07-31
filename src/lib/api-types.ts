@@ -61,9 +61,33 @@ export interface Patient {
   emergency_contact_phone: string | null;
   insurance_provider: string | null;
   insurance_number: string | null;
+  is_primary_account?: boolean;
+  primary_account_id?: string | null;
+  dependant_relationship?: string | null;
   created_at: string;
   updated_at: string;
   user?: User;
+}
+
+// --- Dependant (a patient row with primary_account_id set) ---
+export interface Dependant {
+  id: string;
+  primary_account_id: string;
+  patient_number: string;
+  family_code: string;
+  full_name: string;
+  date_of_birth: string | null;
+  gender: string | null;
+  blood_group: string | null;
+  genotype: string | null;
+  allergies: string | null;
+  relationship: string | null;
+  phone: string | null;
+  avatar_url: string | null;
+  created_at: string;
+  status: "active" | "needs_attention";
+  outstanding: number;
+  pending_invoices: number;
 }
 
 // --- Staff (extends User where role in doctor/nurse/admin/accountant) ---
