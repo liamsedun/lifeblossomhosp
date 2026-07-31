@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import { chatListTime, initials, roleLabel, roleTagClass, useChatPresence, useInboxRealtime } from "@/lib/chat";
 import type { ChatListResponse } from "@/lib/api-types";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 
 export function AdminChatList({
@@ -107,9 +107,13 @@ export function AdminChatList({
             )}
           >
             <Avatar className="w-10 h-10 shrink-0">
-              <AvatarFallback className="bg-gradient-to-br from-[#1e3a5f] to-[#3b6a8f] text-white text-xs">
-                {initials(chat.other_user?.first_name, chat.other_user?.last_name)}
-              </AvatarFallback>
+              {chat.other_user?.avatar_url ? (
+                <AvatarImage src={chat.other_user.avatar_url} alt={chat.other_user.first_name} />
+              ) : (
+                <AvatarFallback className="bg-gradient-to-br from-[#1e3a5f] to-[#3b6a8f] text-white text-xs">
+                  {initials(chat.other_user?.first_name, chat.other_user?.last_name)}
+                </AvatarFallback>
+              )}
             </Avatar>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
@@ -149,9 +153,13 @@ export function AdminChatList({
                 className="w-full flex items-center gap-3 rounded-xl p-2.5 text-left hover:bg-white/[0.06] transition-colors disabled:opacity-50 border border-dashed border-white/[0.08] bg-white/[0.01] mb-1.5"
               >
                 <Avatar className="w-10 h-10 shrink-0">
-                  <AvatarFallback className="bg-gradient-to-br from-[#4a2540] to-[#8f3b6d] text-white text-xs">
-                    {initials(p.first_name, p.last_name)}
-                  </AvatarFallback>
+                  {p.avatar_url ? (
+                    <AvatarImage src={p.avatar_url} alt={`${p.first_name} ${p.last_name}`} />
+                  ) : (
+                    <AvatarFallback className="bg-gradient-to-br from-[#4a2540] to-[#8f3b6d] text-white text-xs">
+                      {initials(p.first_name, p.last_name)}
+                    </AvatarFallback>
+                  )}
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <span className="text-sm font-semibold text-white truncate block">

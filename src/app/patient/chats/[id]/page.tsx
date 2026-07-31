@@ -180,8 +180,13 @@ export default function PatientChatWindowPage() {
           <ArrowLeft className="w-5 h-5 text-white/70" />
         </Link>
         <div className="relative">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white bg-gradient-to-br from-[#1e3a5f] via-[#274b6d] to-[#3b6a8f]">
-            {initials(other?.first_name, other?.last_name)}
+          <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white bg-gradient-to-br from-[#1e3a5f] via-[#274b6d] to-[#3b6a8f] overflow-hidden">
+            {other?.avatar_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={other.avatar_url} alt={otherName} className="w-full h-full object-cover" />
+            ) : (
+              initials(other?.first_name, other?.last_name)
+            )}
           </div>
           <span className={cn("absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#0d1322]", isOnline ? "bg-emerald-400" : "bg-white/20")} />
         </div>

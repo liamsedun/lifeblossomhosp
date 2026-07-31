@@ -15,7 +15,7 @@ async function assertParticipant(
 ): Promise<{ chat: any; role: string }> {
   const { data: chat } = await svc
     .from("chats")
-    .select("*, patient:patients(id, user_id, first_name, last_name, org_id)")
+    .select("*, patient:patients(id, user_id, org_id, user:users(id, first_name, last_name, avatar_url, phone))")
     .eq("id", chatId)
     .maybeSingle();
 
@@ -70,8 +70,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       other = u;
     } else {
       const p = chat.patient;
-      if (p) {
-        other = { id: p.user_id, first_name: p.first_name, last_name: p.last_name, role: "patient", avatar_url: null, phone: p.phone ?? null };
+      if (p?.user) {
+        other = { id: p.user_id, first_name: p.user.first_name, last_name: p.user.last_name, role: "patient", avatar_url: p.user.avatar_url ?? null, phone: p.user.phone ?? null };
       }
     }
 

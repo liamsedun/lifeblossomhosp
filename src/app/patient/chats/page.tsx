@@ -9,17 +9,22 @@ import { useAuth } from "@/contexts/auth-context";
 import { chatListTime, initials, roleLabel, roleTagClass, useChatPresence, useInboxRealtime } from "@/lib/chat";
 import type { ChatDirectoryEntry, ChatListResponse } from "@/lib/api-types";
 
-function Avatar({ name, online, ring }: { name: string; online?: boolean; ring?: boolean }) {
+function Avatar({ name, avatarUrl, online, ring }: { name: string; avatarUrl?: string | null; online?: boolean; ring?: boolean }) {
   return (
     <div className="relative shrink-0">
       <div
         className={cn(
-          "w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold text-white",
+          "w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold text-white overflow-hidden",
           "bg-gradient-to-br from-[#1e3a5f] via-[#274b6d] to-[#3b6a8f]",
           ring && "ring-2 ring-[#e0a84a]/40"
         )}
       >
-        {name.slice(0, 2).toUpperCase()}
+        {avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={avatarUrl} alt={name} className="w-full h-full object-cover" />
+        ) : (
+          name.slice(0, 2).toUpperCase()
+        )}
       </div>
       <span
         className={cn(
@@ -180,7 +185,7 @@ export default function PatientChatsPage() {
                   href={`/patient/chats/${chat.id}`}
                   className="flex items-center gap-3 bg-white/[0.03] border border-white/[0.06] rounded-2xl p-3 hover:bg-white/[0.06] transition-colors"
                 >
-                  <Avatar name={chat.other_user ? `${chat.other_user.first_name} ${chat.other_user.last_name}` : "?"} online={online.has(chat.other_user?.id ?? "")} />
+                  <Avatar name={chat.other_user ? `${chat.other_user.first_name} ${chat.other_user.last_name}` : "?"} avatarUrl={chat.other_user?.avatar_url} online={online.has(chat.other_user?.id ?? "")} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold text-white truncate">
@@ -220,7 +225,7 @@ export default function PatientChatsPage() {
                     disabled={creating === staff.id}
                     className="w-full flex items-center gap-3 bg-white/[0.03] border border-white/[0.06] rounded-2xl p-3 hover:bg-white/[0.06] transition-colors text-left disabled:opacity-60"
                   >
-                    <Avatar name={`${staff.first_name} ${staff.last_name}`} online={online.has(staff.id)} />
+                    <Avatar name={`${staff.first_name} ${staff.last_name}`} avatarUrl={staff.avatar_url} online={online.has(staff.id)} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-white truncate">

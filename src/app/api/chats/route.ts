@@ -125,7 +125,7 @@ export async function GET(req: NextRequest) {
     if (patientIds.size > 0) {
       const { data: pats } = await svc
         .from("patients")
-        .select("id, user_id, first_name, last_name, phone")
+        .select("id, user_id, user:users(id, first_name, last_name, avatar_url, phone)")
         .in("id", [...patientIds]);
       for (const p of pats ?? []) patientProfileMap.set(p.id, p);
     }
@@ -139,8 +139,17 @@ export async function GET(req: NextRequest) {
         const staffRow = otherProfileMap.get(c.staff_user_id);
         other =
           c.staff_user_id === authUserId
-            ? patientRow
-              ? { id: patientRow.user_id, first_name: patientRow.first_name, last_name: patientRow.last_name, role: "patient", avatar_url: null, phone: patientRow.phone ?? null, specialization: null, staff_number: null }
+            ? patientRow?.user
+              ? {
+                  id: patientRow.user_id,
+                  first_name: patientRow.user.first_name,
+                  last_name: patientRow.user.last_name,
+                  role: "patient",
+                  avatar_url: patientRow.user.avatar_url ?? null,
+                  phone: patientRow.user.phone ?? null,
+                  specialization: null,
+                  staff_number: null,
+                }
               : null
             : staffRow ?? null;
       }
@@ -168,18 +177,18 @@ export async function GET(req: NextRequest) {
       // Staff/admin see all patients with login accounts they can message
       const { data: pats } = await svc
         .from("patients")
-        .select("id, user_id, first_name, last_name, phone")
+        .select("id, user_id, user:users(id, first_name, last_name, avatar_url)")
         .eq("org_id", orgId)
         .not("user_id", "is", null);
       directory = (pats ?? []).map((p: any) => ({
         id: p.user_id,
         patient_id: p.id,
-        first_name: p.first_name,
-        last_name: p.last_name,
+        first_name: p.user?.first_name,
+        last_name: p.user?.last_name,
         role: "patient",
-        avatar_url: null,
+        avatar_url: p.user?.avatar_url ?? null,
         specialization: null,
-        staff_number: p.phone,
+        staff_number: null,
       })).filter((d: any) => d.id);
     }
 
@@ -250,9 +259,14 @@ export async function POST(req: NextRequest) {
       const { data: u } = await svc.from("users").select("id, first_name, last_name, role, avatar_url, phone").eq("id", staffUserId).single();
       other = u;
     } else {
-      const { data: p } = await svc.from("patients").select("id, user_id, first_name, last_name, phone").eq("id", patientId).single();
-      if (p) {
-        other = { id: p.user_id, first_name: p.first_name, last_name: p.last_name, role: "patient", avatar_url: null, phone: p.phone ?? null };
+      const { data: p } = await svc
+        .from("patients")
+        .select("id, user_id, user:users(id, first_name, last_name, avatar_url, phone)")
+        .eq("id", patientId)
+        .single();
+      const userRow = (p as any)?.user as any;
+      if (userRow) {
+        other = { id: (p as any).user_id, first_name: userRow.first_name, last_name: userRow.last_name, role: "patient", avatar_url: userRow.avatar_url ?? null, phone: userRow.phone ?? null };
       }
     }
 

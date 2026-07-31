@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import { chatTime, initials, roleLabel, useChatPresence, useChatRealtime } from "@/lib/chat";
 import type { ChatMessage, ChatOtherUser, ChatWindowResponse } from "@/lib/api-types";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 const QUICK_REPLIES = ["Thank you", "Noted", "We'll look into it", "Please come in for a review", "Feel better soon"];
 
@@ -178,9 +178,13 @@ export function AdminChatWindow({ chatId }: { chatId: string }) {
         </button>
         <div className="relative">
           <Avatar className="w-10 h-10">
-            <AvatarFallback className="bg-gradient-to-br from-[#1e3a5f] to-[#3b6a8f] text-white text-sm">
-              {initials(other?.first_name, other?.last_name)}
-            </AvatarFallback>
+            {other?.avatar_url ? (
+              <AvatarImage src={other.avatar_url} alt={otherName} />
+            ) : (
+              <AvatarFallback className="bg-gradient-to-br from-[#1e3a5f] to-[#3b6a8f] text-white text-sm">
+                {initials(other?.first_name, other?.last_name)}
+              </AvatarFallback>
+            )}
           </Avatar>
           <span className={cn("absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#0d1322]", isOnline ? "bg-emerald-400" : "bg-white/20")} />
         </div>
