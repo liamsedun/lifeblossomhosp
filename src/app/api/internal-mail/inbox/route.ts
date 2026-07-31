@@ -23,9 +23,12 @@ export const GET = withAuth(async (req, supabase, authUserId) => {
   const senderIds = [...new Set(rows.map((r: any) => r.internal_messages?.sender_id).filter(Boolean))];
   let senderMap: Record<string, any> = {};
   if (senderIds.length) {
-    const { data: senders } = await svc.from("users").select("id, full_name, role, avatar_url").in("id", senderIds);
+    const { data: senders } = await svc.from("users").select("id, first_name, last_name, role, avatar_url").in("id", senderIds);
     if (senders) {
-      senderMap = Object.fromEntries(senders.map((s: any) => [s.id, s]));
+      senderMap = Object.fromEntries(senders.map((s: any) => [s.id, {
+        ...s,
+        full_name: [s.first_name, s.last_name].filter(Boolean).join(" ") || "Unknown",
+      }]));
     }
   }
 
@@ -33,6 +36,7 @@ export const GET = withAuth(async (req, supabase, authUserId) => {
     const msg = r.internal_messages || {};
     return {
       ...msg,
+      recipient_row_id: r.id,
       recipient_id: r.recipient_id,
       is_read: r.is_read,
       read_at: r.read_at,

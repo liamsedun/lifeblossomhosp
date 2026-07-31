@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Mail, MailOpen, Send, ReplyAll, Users, UserPlus, Loader2, ChevronDown,
-  CheckCheck, MessageSquare, Inbox, Clock, AlertCircle, X,
+  CheckCheck, MessageSquare, Inbox, Clock, AlertCircle, X, Trash2,
 } from "lucide-react";
 import { cn, formatDate, formatTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,7 @@ interface InternalMessage {
   sender_id: string;
   sender: StaffUser | null;
   is_read?: boolean;
+  recipient_row_id?: string;
   recipient_id?: string;
   recipient_count?: number;
 }
@@ -50,6 +51,7 @@ export default function InternalMailPage() {
   // Compose state
   const [recipientType, setRecipientType] = useState<"individual" | "staff" | "all">("individual");
   const [staffList, setStaffList] = useState<StaffUser[]>([]);
+  const [patientList, setPatientList] = useState<StaffUser[]>([]);
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -80,9 +82,12 @@ export default function InternalMailPage() {
 
   const loadStaff = async () => {
     try {
-      const r = await fetch("/api/admin/users?role_ne=patient&page_size=200");
+      const r = await fetch("/api/internal-mail/recipients");
       const j = await r.json();
-      if (j.success) setStaffList(j.data || []);
+      if (j.success) {
+        setStaffList(j.data?.staff || []);
+        setPatientList(j.data?.patients || []);
+      }
     } catch {}
   };
 
@@ -139,9 +144,24 @@ export default function InternalMailPage() {
   const openDetail = (msg: InternalMessage) => {
     setSelectedMsg(msg);
     setDetailOpen(true);
-    if (msg.recipient_id && !msg.is_read) {
-      fetch(`/api/internal-mail/read/${msg.recipient_id}`, { method: "PUT" }).catch(() => {});
+    if (msg.recipient_row_id && !msg.is_read) {
+      fetch(`/api/internal-mail/read/${msg.recipient_row_id}`, { method: "PUT" }).catch(() => {});
       msg.is_read = true;
+    }
+  };
+
+  const handleDelete = async (msg: InternalMessage, view: "inbox" | "sent") => {
+    if (!confirm(`Delete this message from your ${view}?`)) return;
+    try {
+      const id = view === "inbox" ? msg.recipient_row_id || msg.id : msg.id;
+      const r = await fetch(`/api/internal-mail/${id}?view=${view}`, { method: "DELETE" });
+      const j = await r.json();
+      if (!j.success) throw new Error(j.error || "Delete failed");
+      if (view === "inbox") loadInbox();
+      else loadSent();
+      if (selectedMsg?.id === msg.id) setDetailOpen(false);
+    } catch (e: any) {
+      alert(e.message || "Failed to delete");
     }
   };
 
@@ -198,38 +218,46 @@ export default function InternalMailPage() {
               ) : (
                 <div className="divide-y divide-white/[0.04]">
                   {inboxMsgs.map((msg) => (
-                    <button key={msg.recipient_id || msg.id}
-                      onClick={() => openDetail(msg)}
-                      className="w-full text-left px-4 py-3 hover:bg-white/[0.03] transition-colors">
-                      <div className="flex items-start gap-3">
-                        <div className="mt-0.5">
-                          {msg.is_read ? (
-                            <MailOpen className="size-4 text-white/30" />
-                          ) : (
-                            <Mail className="size-4 text-[#e0a84a]" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className={cn("text-sm truncate", msg.is_read ? "text-white/70" : "text-white font-medium")}>
-                              {msg.subject}
-                            </p>
-                            <span className="text-[10px] text-white/30 shrink-0">{formatDate(msg.created_at)}</span>
-                          </div>
-                          <p className="text-xs text-white/40 mt-0.5 truncate">{msg.body}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px] text-white/30">
-                              From: {msg.sender?.full_name || "Unknown"}
-                            </span>
-                            {msg.is_broadcast && (
-                              <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-[#e0a84a]/30 text-[#e0a84a] bg-[#e0a84a]/5">
-                                <ReplyAll className="size-2.5 mr-1" /> Broadcast
-                              </Badge>
+                    <div key={msg.recipient_row_id || msg.id} className="group flex items-center">
+                      <button
+                        onClick={() => openDetail(msg)}
+                        className="flex-1 min-w-0 text-left px-4 py-3 hover:bg-white/[0.03] transition-colors">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5">
+                            {msg.is_read ? (
+                              <MailOpen className="size-4 text-white/30" />
+                            ) : (
+                              <Mail className="size-4 text-[#e0a84a]" />
                             )}
                           </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className={cn("text-sm truncate", msg.is_read ? "text-white/70" : "text-white font-medium")}>
+                                {msg.subject}
+                              </p>
+                              <span className="text-[10px] text-white/30 shrink-0">{formatDate(msg.created_at)}</span>
+                            </div>
+                            <p className="text-xs text-white/40 mt-0.5 truncate">{msg.body}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-[10px] text-white/30">
+                                From: {msg.sender?.full_name || "Unknown"}
+                              </span>
+                              {msg.is_broadcast && (
+                                <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-[#e0a84a]/30 text-[#e0a84a] bg-[#e0a84a]/5">
+                                  <ReplyAll className="size-2.5 mr-1" /> Broadcast
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </button>
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDelete(msg, "inbox"); }}
+                        title="Delete from inbox"
+                        className="mr-3 p-2 rounded-lg text-white/30 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0">
+                        <Trash2 className="size-4" />
+                      </button>
+                    </div>
                   ))}
                 </div>
               )}
@@ -256,34 +284,42 @@ export default function InternalMailPage() {
               ) : (
                 <div className="divide-y divide-white/[0.04]">
                   {sentMsgs.map((msg) => (
-                    <button key={msg.id}
-                      onClick={() => openDetail(msg)}
-                      className="w-full text-left px-4 py-3 hover:bg-white/[0.03] transition-colors">
-                      <div className="flex items-start gap-3">
-                        <div className="mt-0.5">
-                          <Send className="size-4 text-white/30" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm text-white font-medium truncate">{msg.subject}</p>
-                            <span className="text-[10px] text-white/30 shrink-0">{formatDate(msg.created_at)}</span>
+                    <div key={msg.id} className="group flex items-center">
+                      <button
+                        onClick={() => openDetail(msg)}
+                        className="flex-1 min-w-0 text-left px-4 py-3 hover:bg-white/[0.03] transition-colors">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5">
+                            <Send className="size-4 text-white/30" />
                           </div>
-                          <p className="text-xs text-white/40 mt-0.5 truncate">{msg.body}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            {msg.is_broadcast ? (
-                              <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-[#e0a84a]/30 text-[#e0a84a] bg-[#e0a84a]/5">
-                                <ReplyAll className="size-2.5 mr-1" />
-                                Broadcast to {msg.broadcast_scope === "all" ? "All" : "Staff"}
-                              </Badge>
-                            ) : (
-                              <span className="text-[10px] text-white/30">
-                                {msg.recipient_count ?? 0} recipient{(msg.recipient_count ?? 0) !== 1 ? "s" : ""}
-                              </span>
-                            )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm text-white font-medium truncate">{msg.subject}</p>
+                              <span className="text-[10px] text-white/30 shrink-0">{formatDate(msg.created_at)}</span>
+                            </div>
+                            <p className="text-xs text-white/40 mt-0.5 truncate">{msg.body}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              {msg.is_broadcast ? (
+                                <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-[#e0a84a]/30 text-[#e0a84a] bg-[#e0a84a]/5">
+                                  <ReplyAll className="size-2.5 mr-1" />
+                                  Broadcast to {msg.broadcast_scope === "all" ? "All" : "Staff"}
+                                </Badge>
+                              ) : (
+                                <span className="text-[10px] text-white/30">
+                                  {msg.recipient_count ?? 0} recipient{(msg.recipient_count ?? 0) !== 1 ? "s" : ""}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </button>
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDelete(msg, "sent"); }}
+                        title="Delete message"
+                        className="mr-3 p-2 rounded-lg text-white/30 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0">
+                        <Trash2 className="size-4" />
+                      </button>
+                    </div>
                   ))}
                 </div>
               )}
@@ -333,28 +369,54 @@ export default function InternalMailPage() {
               {recipientType === "individual" && (
                 <div>
                   <label className="text-xs text-white/60 mb-1.5 block">Select Recipients</label>
-                  <div className="max-h-40 overflow-y-auto border border-white/[0.06] rounded-lg p-2 space-y-1">
-                    {staffList.length === 0 ? (
-                      <p className="text-xs text-white/30 p-2">Loading staff...</p>
+                  <div className="max-h-64 overflow-y-auto border border-white/[0.06] rounded-lg p-2 space-y-1">
+                    {staffList.length === 0 && patientList.length === 0 ? (
+                      <p className="text-xs text-white/30 p-2">Loading recipients...</p>
                     ) : (
-                      staffList.map((s) => (
-                        <label key={s.id}
-                          className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-white/[0.04] cursor-pointer">
-                          <input type="checkbox" checked={selectedRecipients.includes(s.id)}
-                            onChange={() => toggleRecipient(s.id)}
-                            className="accent-[#e0a84a]" />
-                          <Avatar className="size-6">
-                            <AvatarImage src={s.avatar_url || undefined} />
-                            <AvatarFallback className="text-[9px] bg-white/[0.06] text-white/60">
-                              {s.full_name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?"}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-white/80 truncate">{s.full_name}</p>
-                            <p className="text-[10px] text-white/40 capitalize">{s.role?.replace("_", " ")}</p>
-                          </div>
-                        </label>
-                      ))
+                      <>
+                        {staffList.length > 0 && (
+                          <p className="text-[10px] text-white/40 uppercase tracking-wider px-2 pt-1">Staff</p>
+                        )}
+                        {staffList.map((s) => (
+                          <label key={s.id}
+                            className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-white/[0.04] cursor-pointer">
+                            <input type="checkbox" checked={selectedRecipients.includes(s.id)}
+                              onChange={() => toggleRecipient(s.id)}
+                              className="accent-[#e0a84a]" />
+                            <Avatar className="size-6">
+                              <AvatarImage src={s.avatar_url || undefined} />
+                              <AvatarFallback className="text-[9px] bg-white/[0.06] text-white/60">
+                                {s.full_name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?"}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-white/80 truncate">{s.full_name}</p>
+                              <p className="text-[10px] text-white/40 capitalize">{s.role?.replace("_", " ")}</p>
+                            </div>
+                          </label>
+                        ))}
+                        {patientList.length > 0 && (
+                          <p className="text-[10px] text-white/40 uppercase tracking-wider px-2 pt-2">Patients</p>
+                        )}
+                        {patientList.map((s) => (
+                          <label key={s.id}
+                            className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-white/[0.04] cursor-pointer">
+                            <input type="checkbox" checked={selectedRecipients.includes(s.id)}
+                              onChange={() => toggleRecipient(s.id)}
+                              className="accent-[#e0a84a]" />
+                            <Avatar className="size-6">
+                              <AvatarImage src={s.avatar_url || undefined} />
+                              <AvatarFallback className="text-[9px] bg-white/[0.06] text-white/60">
+                                {s.full_name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?"}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-white/80 truncate">{s.full_name}</p>
+                              <p className="text-[10px] text-white/40 capitalize">Patient</p>
+                            </div>
+                          </label>
+                        ))}
+                      </>
                     )}
                   </div>
                   {selectedRecipients.length > 0 && (

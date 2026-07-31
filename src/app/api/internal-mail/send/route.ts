@@ -22,11 +22,12 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
 
   if (body.broadcast) {
     const scope = body.broadcast_scope || "staff";
-    let q = svc.from("users").select("id").eq("org_id", orgId);
+    let q = svc.from("users").select("id, role").eq("org_id", orgId);
     if (scope === "staff") {
-      q = q.in("role", ["admin", "doctor", "nurse", "accountant", "super_admin", "staff"]);
+      q = q.neq("role", "patient");
     }
-    const { data: users } = await q;
+    const { data: users, error: usersErr } = await q;
+    if (usersErr) return err(usersErr.message, 500);
     if (users) {
       recipientIds = users.map((u: any) => u.id).filter((id: string) => id !== authUserId);
     }
@@ -35,6 +36,18 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   }
 
   if (!recipientIds.length) return err("No recipients specified", 400);
+
+  // Determine which recipients are patients so notification links go to the right portal
+  let patientSet = new Set<string>();
+  if (recipientIds.length) {
+    const { data: recp } = await svc
+      .from("users")
+      .select("id, role")
+      .in("id", recipientIds);
+    if (recp) {
+      patientSet = new Set(recp.filter((u: any) => u.role === "patient").map((u: any) => u.id));
+    }
+  }
 
   // Create the message
   const { data: msg, error: msgErr } = await svc.from("internal_messages").insert({
@@ -57,16 +70,16 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   const { error: recErr } = await svc.from("internal_message_recipients").insert(recipients);
   if (recErr) return err(recErr.message, 500);
 
-  // Create notifications for all recipients
+  // Create notifications for all recipients (link is portal-aware: patients → /patient, staff → /admin)
   const notifications = recipientIds.map((uid: string) => ({
     org_id: orgId,
     user_id: uid,
-    type: "internal_message" as const,
+    type: "general" as const,
     title: `New message: ${body.subject.trim()}`,
     message: body.body.trim().slice(0, 150),
-    link: "/admin/internal-mail",
+    link: patientSet.has(uid) ? "/patient/internal-mail" : "/admin/internal-mail",
     is_read: false,
-    sent_at: new Date().toISOString(),
+    created_at: new Date().toISOString(),
   }));
 
   const { error: notifErr } = await svc.from("notifications").insert(notifications);

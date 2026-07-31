@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Home, Calendar, CreditCard, FileText, User, Bell, ChevronRight,
-  MessageCircle, X,
+  MessageCircle, X, Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
@@ -17,6 +17,7 @@ const tabs = [
   { href: "/patient/invoices", label: "Bills", icon: CreditCard },
   { href: "/patient/payments", label: "Payments", icon: CreditCard },
   { href: "/patient/records", label: "Records", icon: FileText },
+  { href: "/patient/internal-mail", label: "Messages", icon: Mail },
   { href: "/patient/profile", label: "Profile", icon: User },
 ];
 
@@ -25,7 +26,7 @@ const typeIcons: Record<string, string> = {
   payment_due: "💳",
   lab_result: "🔬",
   prescription_refill: "💊",
-  general: "📋",
+  general: "✉️",
 };
 
 export default function PatientLayout({ children }: { children: React.ReactNode }) {
@@ -74,7 +75,8 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
   };
 
   const notificationTime = (sentAt: string) => {
-    const diff = Date.now() - new Date(sentAt).getTime();
+    const ts = sentAt ? new Date(sentAt).getTime() : Date.now();
+    const diff = Date.now() - ts;
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return "Just now";
     if (mins < 60) return `${mins}m ago`;
@@ -144,8 +146,10 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
                       notifications.map((n) => (
                         <div
                           key={n.id}
+                          onClick={() => { if (n.link) window.location.href = n.link; }}
                           className={cn(
-                            "flex items-start gap-3 px-4 py-3 border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors cursor-pointer",
+                            "flex items-start gap-3 px-4 py-3 border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors",
+                            n.link ? "cursor-pointer" : "cursor-default",
                             !n.is_read && "bg-[#e0a84a]/[0.04]"
                           )}
                         >

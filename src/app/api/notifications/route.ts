@@ -46,7 +46,7 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
     message: body.message || null,
     link: body.link || null,
     is_read: false,
-    sent_at: new Date().toISOString(),
+    created_at: new Date().toISOString(),
   }).select().single();
 
   if (error) return err(error.message, 500);

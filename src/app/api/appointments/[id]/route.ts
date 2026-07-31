@@ -46,7 +46,7 @@ export const PUT = withAuth(async (req, supabase, _uid, context) => {
         await svc.from("notifications").insert({
           user_id: patient.user_id, type: n.type, title: n.title,
           message: n.message, link: "/patient/appointments", is_read: false,
-          sent_at: new Date().toISOString(), org_id: (user as any)?.org_id || "",
+          created_at: new Date().toISOString(), org_id: (user as any)?.org_id || "",
         });
       }
     }
