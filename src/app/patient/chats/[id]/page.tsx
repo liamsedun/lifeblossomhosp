@@ -89,6 +89,27 @@ export default function PatientChatWindowPage() {
   useChatRealtime(chatId, (msg) => {
     setMessages((prev) => {
       if (prev.some((m) => m.id === msg.id)) return prev;
+      if (msg.sender_id === user?.id) {
+        // Own message: realtime echoes our own insert — promote the optimistic
+        // temp entry (same sender + content, sent moments ago) instead of
+        // appending, so the message never renders twice.
+        const tempIdx = prev.findIndex(
+          (m) =>
+            m.id.startsWith("temp-") &&
+            m.sender_id === msg.sender_id &&
+            m.message === msg.message &&
+            Date.now() - new Date(m.created_at).getTime() < 10_000
+        );
+        if (tempIdx >= 0) {
+          const next = [...prev];
+          next[tempIdx] = { ...msg };
+          return next;
+        }
+        // No optimistic match (e.g. sent from another tab) — append fresh.
+        const next = [...prev, msg];
+        if (next.length > 200) next.splice(0, next.length - 200);
+        return next;
+      }
       const next = [...prev, msg];
       if (next.length > 200) next.splice(0, next.length - 200);
       return next;
