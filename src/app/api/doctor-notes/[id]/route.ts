@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { withAuth, ok, err, parseBody } from "@/lib/api-utils";
+import { withAuth, ok, err, parseBody, resolveOrgId } from "@/lib/api-utils";
 import { createServiceClient } from "@/lib/supabase/server";
 
 const ALLOWED_ROLES = ["doctor", "nurse"];
@@ -13,10 +13,13 @@ export const GET = withAuth(async (req, supabase, authUserId, context) => {
   if (!await checkRole(supabase, authUserId)) return err("Forbidden", 403);
   const { id } = await context.params;
   const svc = createServiceClient();
+  const orgId = await resolveOrgId(supabase, authUserId);
+  if (!orgId) return err("Org not found", 404);
   const { data, error } = await svc
     .from("doctor_notes")
     .select("*, doctor:staff!doctor_id(*, user:users(id, first_name, last_name))")
     .eq("id", id)
+    .eq("org_id", orgId)
     .single();
   if (error || !data) return err("Not found", 404);
   return ok(data);
@@ -27,6 +30,8 @@ export const PUT = withAuth(async (req, supabase, authUserId, context) => {
   const { id } = await context.params;
   const body = await parseBody<any>(req);
   const svc = createServiceClient();
+  const orgId = await resolveOrgId(supabase, authUserId);
+  if (!orgId) return err("Org not found", 404);
 
   const allowed = [
     "doctor_id", "appointment_id", "visit_date", "vitals", "tests_procedures",
@@ -40,6 +45,7 @@ export const PUT = withAuth(async (req, supabase, authUserId, context) => {
     .from("doctor_notes")
     .update(updates)
     .eq("id", id)
+    .eq("org_id", orgId)
     .select("*, doctor:staff!doctor_id(*, user:users(id, first_name, last_name))")
     .single();
 
@@ -52,7 +58,9 @@ export const DELETE = withAuth(async (req, supabase, authUserId, context) => {
   if (!await checkRole(supabase, authUserId)) return err("Forbidden", 403);
   const { id } = await context.params;
   const svc = createServiceClient();
-  const { error } = await svc.from("doctor_notes").delete().eq("id", id);
+  const orgId = await resolveOrgId(supabase, authUserId);
+  if (!orgId) return err("Org not found", 404);
+  const { error } = await svc.from("doctor_notes").delete().eq("id", id).eq("org_id", orgId);
   if (error) return err(error.message, 500);
   return ok(null);
 });

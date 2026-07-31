@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError } from "@/lib/api-utils";
+import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError, resolveOrgId } from "@/lib/api-utils";
 import { createServiceClient } from "@/lib/supabase/server";
 
 const ALLOWED_ROLES = ["doctor", "nurse"];
@@ -21,9 +21,13 @@ export const GET = withAuth(async (req, supabase, authUserId) => {
   const { page, pageSize, from, to } = getPagination(sp);
   const svc = createServiceClient();
 
+  const orgId = await resolveOrgId(supabase, authUserId);
+  if (!orgId) return err("Org not found", 404);
+
   const { data, error, count } = await svc
     .from("doctor_notes")
     .select("*, doctor:staff!doctor_id(*, user:users(id, first_name, last_name))", { count: "exact" })
+    .eq("org_id", orgId)
     .eq("patient_id", patientId)
     .order("visit_date", { ascending: false })
     .range(from, to);
@@ -48,9 +52,13 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
 
   const svc = createServiceClient();
 
+  const orgId = await resolveOrgId(supabase, authUserId);
+  if (!orgId) return err("Org not found", 404);
+
   const { data, error } = await svc
     .from("doctor_notes")
     .insert({
+      org_id: orgId,
       patient_id: body.patient_id,
       doctor_id: body.doctor_id || null,
       appointment_id: body.appointment_id || null,
