@@ -36,6 +36,18 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       .neq("sender_id", authUserId);
 
     if (error) return err(error.message, 500);
+
+    // Clear matching chat notifications so the bell badge stays accurate
+    const { error: notifError } = await svc
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("user_id", authUserId)
+      .eq("type", "chat_message")
+      .eq("reference_id", chatId)
+      .eq("is_read", false);
+
+    if (notifError) console.error("[Chat] mark notifications read error:", notifError.message);
+
     return ok({ updated: true });
   })(req, ctx);
 }

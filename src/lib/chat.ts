@@ -104,7 +104,11 @@ export function useChatPresence(enabled = true) {
             .catch(() => {});
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") console.debug("[ChatPresence] realtime connected");
+        else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT")
+          console.warn("[ChatPresence] realtime issue:", status);
+      });
 
     return () => {
       clearInterval(heartbeat);
@@ -135,7 +139,11 @@ export function useChatRealtime(chatId: string | null, onNewMessage: (msg: ChatM
           if (msg && msg.sender_id) handlerRef.current(msg);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") console.debug("[ChatRealtime]", chatId, "connected");
+        else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT")
+          console.warn("[ChatRealtime]", chatId, "issue:", status);
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -175,7 +183,11 @@ export function useInboxRealtime(enabled: boolean, onEvent: (ev: InboxEvent) => 
           });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") console.debug("[ChatInbox] realtime connected");
+        else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT")
+          console.warn("[ChatInbox] realtime issue:", status);
+      });
 
     return () => {
       supabase.removeChannel(channel);

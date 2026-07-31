@@ -41,16 +41,24 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch("/api/notifications?page_size=20")
-      .then((r) => r.json())
-      .then((json) => {
-        if (json.success) {
+    let mounted = true;
+    const fetchNotifs = () => {
+      fetch("/api/notifications?page_size=20")
+        .then((r) => r.json())
+        .then((json) => {
+          if (!json.success || !mounted) return;
           const all = json.data || [];
           setNotifications(all.slice(0, 10));
           setUnreadCount(all.filter((n: Notification) => !n.is_read).length);
-        }
-      })
-      .catch(() => {});
+        })
+        .catch(() => {});
+    };
+    fetchNotifs();
+    const id = setInterval(fetchNotifs, 20_000);
+    return () => {
+      mounted = false;
+      clearInterval(id);
+    };
   }, []);
 
   // Chat unread badge — poll + realtime push

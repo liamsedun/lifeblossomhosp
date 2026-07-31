@@ -120,6 +120,29 @@ export default function PatientChatWindowPage() {
     }
   });
 
+  // Fallback poll: if Realtime is unavailable (RLS/publication/plan limits),
+  // this still picks up new messages so the chat never goes stale.
+  useEffect(() => {
+    const id = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/chats/${chatId}/messages?limit=20`);
+        const json = await res.json();
+        if (!json.success) return;
+        const server = json.data.messages as ChatMessage[];
+        setMessages((prev) => {
+          const merged = [...prev];
+          for (const sm of server) {
+            if (!merged.some((m) => m.id === sm.id)) merged.push(sm);
+          }
+          merged.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+          if (merged.length > 200) merged.splice(0, merged.length - 200);
+          return merged;
+        });
+      } catch { /* offline */ }
+    }, 15_000);
+    return () => clearInterval(id);
+  }, [chatId]);
+
   const loadOlder = async () => {
     if (loadingOlderRef.current || !hasMore || messages.length === 0) return;
     loadingOlderRef.current = true;
