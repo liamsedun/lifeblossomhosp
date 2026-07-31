@@ -250,6 +250,7 @@ CREATE TABLE IF NOT EXISTS invoices (
   discount_amount NUMERIC(12,2) DEFAULT 0,
   total_amount    NUMERIC(12,2) NOT NULL DEFAULT 0,
   paid_amount     NUMERIC(12,2) DEFAULT 0,
+  attending_staff_id UUID REFERENCES users(id) ON DELETE SET NULL,
   notes           TEXT,
   created_by      UUID REFERENCES users(id) ON DELETE SET NULL,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -266,6 +267,8 @@ CREATE TABLE IF NOT EXISTS invoice_items (
   description   VARCHAR(500) NOT NULL,
   quantity      INTEGER NOT NULL DEFAULT 1,
   unit_price    NUMERIC(12,2) NOT NULL,
+  vat_percent   NUMERIC(5,2) NOT NULL DEFAULT 0,
+  vat_amount    NUMERIC(12,2) NOT NULL DEFAULT 0,
   total_price   NUMERIC(12,2) NOT NULL,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );

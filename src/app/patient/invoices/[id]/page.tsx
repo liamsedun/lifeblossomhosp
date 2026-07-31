@@ -122,6 +122,12 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
               <span className="text-danger">-₦{invoice.discount_amount.toLocaleString()}</span>
             </div>
           )}
+          {invoice.tax_amount > 0 && (
+            <div className="flex justify-between">
+              <span className="text-text-secondary">VAT Amount</span>
+              <span>₦{invoice.tax_amount.toLocaleString()}</span>
+            </div>
+          )}
           <div className="flex justify-between font-bold text-base border-t border-border pt-2">
             <span>Total</span>
             <span>₦{invoice.total_amount.toLocaleString()}</span>

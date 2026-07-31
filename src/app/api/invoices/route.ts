@@ -11,7 +11,7 @@ export const GET = withAuth(async (req, supabase, authUserId) => {
 
   let query = svc
     .from("invoices")
-    .select("*, patient:patients(*, user:users(id, first_name, last_name)), items:invoice_items(*), payments:payments(*)",
+    .select("*, patient:patients(*, user:users(id, first_name, last_name)), items:invoice_items(*), payments:payments(*), attending_staff:attending_staff_id(id, first_name, last_name, role, avatar_url)",
       { count: "exact" });
 
   if (patientId) query = query.eq("patient_id", patientId);
@@ -26,8 +26,8 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   const body = await parseBody<{
     patient_id: string; appointment_id?: string; issue_date?: string; due_date?: string;
     subtotal: number; tax_amount?: number; discount_amount?: number; total_amount: number;
-    notes?: string; status?: string;
-    items: Array<{ description: string; quantity: number; unit_price: number; total_price: number }>;
+    attending_staff_id?: string; notes?: string; status?: string;
+    items: Array<{ description: string; quantity: number; unit_price: number; total_price: number; vat_percent?: number; vat_amount?: number }>;
   }>(req);
 
   if (!body.patient_id || body.subtotal === undefined || !body.total_amount) {
@@ -43,6 +43,19 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   const { count } = await supabase.from("invoices").select("id", { count: "exact", head: true });
   const invoiceNumber = `INV-${String((count || 0) + 1).padStart(4, "0")}`;
 
+  // Validate attending staff belongs to this org (if provided)
+  if (body.attending_staff_id) {
+    const { data: staffUser } = await svc
+      .from("users")
+      .select("id, role")
+      .eq("id", body.attending_staff_id)
+      .maybeSingle();
+    if (!staffUser) return err("Attending staff not found", 400);
+    if (!["doctor", "nurse", "admin", "super_admin", "accountant"].includes(staffUser.role)) {
+      return err("Attending staff must be a doctor, nurse, admin, accountant, or super admin", 400);
+    }
+  }
+
   const { data: invoice, error: invError } = await svc
     .from("invoices")
     .insert({
@@ -55,6 +68,7 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
       tax_amount: body.tax_amount || 0,
       discount_amount: body.discount_amount || 0,
       total_amount: body.total_amount,
+      attending_staff_id: body.attending_staff_id || null,
       created_by: authUserId,
       notes: body.notes || null,
     })
@@ -64,14 +78,22 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   if (invError) return err(invError.message, 500);
 
   // Insert items
-  const lineItems = body.items.map((it) => ({ ...it, invoice_id: invoice.id }));
+  const lineItems = body.items.map((it) => ({
+    description: it.description,
+    quantity: it.quantity,
+    unit_price: it.unit_price,
+    vat_percent: it.vat_percent || 0,
+    vat_amount: it.vat_amount || 0,
+    total_price: it.total_price,
+    invoice_id: invoice.id,
+  }));
   const { data: items, error: itemsError } = await svc.from("invoice_items").insert(lineItems).select();
   if (itemsError) return err(itemsError.message, 500);
 
   // Fetch full invoice
   const { data: full } = await svc
     .from("invoices")
-    .select("*, patient:patients(*, user:users(id, first_name, last_name)), items:invoice_items(*), payments:payments(*)")
+    .select("*, patient:patients(*, user:users(id, first_name, last_name)), items:invoice_items(*), payments:payments(*), attending_staff:attending_staff_id(id, first_name, last_name, role, avatar_url)")
     .eq("id", invoice.id).single();
 
   return ok({ ...full, items }, 201);

@@ -76,9 +76,7 @@ export default function SettingsPage() {
         <TabsList>
           <TabsTrigger value="doctors">Doctors</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
-          <TabsTrigger value="general" disabled>
-            General
-          </TabsTrigger>
+          <TabsTrigger value="general">General</TabsTrigger>
         </TabsList>
 
         <TabsContent value="doctors">
@@ -156,8 +154,179 @@ export default function SettingsPage() {
         <TabsContent value="users">
           <UsersTab />
         </TabsContent>
+
+        <TabsContent value="general">
+          <HospitalInfoTab />
+        </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+interface HospitalInfo {
+  name: string;
+  logo_url: string;
+  address: string;
+  phone: string;
+  email: string;
+  website: string;
+}
+
+function HospitalInfoTab() {
+  const [form, setForm] = useState<HospitalInfo>({
+    name: "",
+    logo_url: "",
+    address: "",
+    phone: "",
+    email: "",
+    website: "",
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/org")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success) {
+          setForm({
+            name: json.data.name || "",
+            logo_url: json.data.logo_url || "",
+            address: json.data.address || "",
+            phone: json.data.phone || "",
+            email: json.data.email || "",
+            website: json.data.website || "",
+          });
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setMessage(null);
+    setSaving(true);
+    try {
+      const res = await fetch("/api/org", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          logo_url: form.logo_url.trim() || null,
+          address: form.address.trim(),
+          phone: form.phone.trim(),
+          email: form.email.trim(),
+          website: form.website.trim(),
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setMessage({ type: "success", text: "Hospital information saved. It will appear on new invoice printouts." });
+      } else {
+        setMessage({ type: "error", text: json.error || "Failed to save" });
+      }
+    } catch {
+      setMessage({ type: "error", text: "Network error" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputClass = "flex h-10 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50";
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">Hospital Information</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-12 animate-pulse rounded-lg bg-muted" />
+            ))}
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <p className="text-sm text-text-secondary">
+              This information appears on the invoice header and footer when printing medical invoices.
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Hospital / Clinic Name</label>
+              <Input
+                placeholder="e.g. Life Blossom Hospital"
+                className={inputClass}
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Logo URL</label>
+              <Input
+                placeholder="https://.../logo.png"
+                className={inputClass}
+                value={form.logo_url}
+                onChange={(e) => setForm((f) => ({ ...f, logo_url: e.target.value }))}
+              />
+              {form.logo_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={form.logo_url} alt="Logo preview" className="mt-2 h-12 w-12 rounded-md object-cover border border-border" />
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Address</label>
+              <Input
+                placeholder="e.g. 12 Adeola Odeku Street, Victoria Island, Lagos"
+                className={inputClass}
+                value={form.address}
+                onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Phone</label>
+                <Input
+                  placeholder="e.g. +234 800 000 0000"
+                  className={inputClass}
+                  value={form.phone}
+                  onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Email</label>
+                <Input
+                  type="email"
+                  placeholder="e.g. info@lifeblossomcares.com.ng"
+                  className={inputClass}
+                  value={form.email}
+                  onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Website</label>
+              <Input
+                placeholder="e.g. https://lifeblossomcares.com.ng"
+                className={inputClass}
+                value={form.website}
+                onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))}
+              />
+            </div>
+            {message && (
+              <div className={`rounded-md p-3 text-sm ${message.type === "success" ? "bg-accent-light text-accent" : "bg-destructive/10 text-destructive"}`}>
+                {message.text}
+              </div>
+            )}
+            <Button type="submit" disabled={saving}>
+              {saving ? "Saving..." : "Save Hospital Information"}
+            </Button>
+          </form>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

@@ -30,6 +30,24 @@ const statusLabels: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
+interface OrgProfile {
+  name: string;
+  logo_url: string | null;
+  address: string;
+  phone: string;
+  email: string;
+  website: string;
+}
+
+const DEFAULT_ORG: OrgProfile = {
+  name: "Life Blossom Hospital",
+  logo_url: null,
+  address: "",
+  phone: "",
+  email: "",
+  website: "",
+};
+
 // ─── Record Payment Dialog ──────────────────────────────────────
 
 function RecordPaymentDialog({
@@ -179,18 +197,212 @@ function PaymentTimeline({ payments }: { payments: Payment[] }) {
   );
 }
 
+// ─── Invoice Document (screen + print) ──────────────────────────
+
+function InvoiceDocument({ invoice, org }: { invoice: Invoice; org: OrgProfile }) {
+  const outstanding = invoice.total_amount - invoice.paid_amount;
+  const patientName = invoice.patient?.user
+    ? `${invoice.patient.user.first_name} ${invoice.patient.user.last_name}`
+    : "Unknown";
+  const patient = invoice.patient;
+
+  return (
+    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-xl p-6 print:p-0 print:rounded-none print:border-0 print:bg-white print:shadow-none print:text-black" id="invoice-print">
+      {/* Hospital header */}
+      <div className="flex items-start justify-between gap-4 pb-5 border-b-2 border-[#e0a84a]/60 print:border-black/20">
+        <div className="flex items-start gap-3">
+          {org.logo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={org.logo_url} alt={org.name} className="w-14 h-14 rounded-lg object-cover print:w-14 print:h-14" />
+          ) : (
+            <div className="w-14 h-14 rounded-lg bg-[#e0a84a]/10 print:bg-gray-100 flex items-center justify-center">
+              <Receipt className="w-7 h-7 text-[#e0a84a] print:text-gray-700" />
+            </div>
+          )}
+          <div>
+            <h1 className="text-lg font-bold text-white print:text-black">{org.name}</h1>
+            {org.address && <p className="text-xs text-white/60 print:text-gray-600">{org.address}</p>}
+            <p className="text-xs text-white/60 print:text-gray-600">
+              {[org.phone && `Tel: ${org.phone}`, org.email && org.email].filter(Boolean).join("  •  ")}
+            </p>
+            {org.website && <p className="text-xs text-white/60 print:text-gray-600">{org.website}</p>}
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-white/40 print:text-gray-500">Medical Invoice</p>
+          <h2 className="text-2xl font-black text-white print:text-black">{invoice.invoice_number}</h2>
+          <p className="text-xs text-white/60 print:text-gray-600 mt-1">
+            Date: {formatDate(invoice.issue_date)}
+            {invoice.due_date ? `  •  Due: ${formatDate(invoice.due_date)}` : ""}
+          </p>
+          <div className="mt-1.5 inline-block print:hidden">
+            <Badge variant={statusStyles[invoice.status] || "secondary"} className="text-xs">
+              {statusLabels[invoice.status] || invoice.status}
+            </Badge>
+          </div>
+        </div>
+      </div>
+
+      {/* Bill to + attending */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-white/40 print:text-gray-500 font-semibold mb-1">Bill To</p>
+          <p className="text-sm font-bold text-white print:text-black">{patientName}</p>
+          {patient?.patient_number && (
+            <p className="text-xs text-white/60 print:text-gray-600">Patient ID: {patient.patient_number}</p>
+          )}
+          {patient?.user?.email && (
+            <p className="text-xs text-white/60 print:text-gray-600">{patient.user.email}</p>
+          )}
+          {patient?.user?.phone && (
+            <p className="text-xs text-white/60 print:text-gray-600">{patient.user.phone}</p>
+          )}
+          {(patient?.address || patient?.city || patient?.state) && (
+            <p className="text-xs text-white/60 print:text-gray-600">
+              {[patient.address, patient.city, patient.state].filter(Boolean).join(", ")}
+            </p>
+          )}
+        </div>
+        <div className="sm:text-right">
+          <p className="text-[10px] uppercase tracking-wider text-white/40 print:text-gray-500 font-semibold mb-1">Attending</p>
+          {invoice.attending_staff ? (
+            <>
+              <p className="text-sm font-bold text-white print:text-black">
+                {invoice.attending_staff.first_name} {invoice.attending_staff.last_name}
+              </p>
+              <p className="text-xs text-white/60 print:text-gray-600 capitalize">
+                {invoice.attending_staff.role.replace("_", " ")}
+              </p>
+            </>
+          ) : (
+            <p className="text-xs text-white/40 print:text-gray-400">—</p>
+          )}
+        </div>
+      </div>
+
+      {/* Line items */}
+      <table className="w-full text-sm mb-4">
+        <thead>
+          <tr className="border-y border-white/[0.08] print:border-gray-400 text-left text-[11px] uppercase tracking-wider text-white/40 print:text-gray-600">
+            <th className="py-2 font-semibold">Item / Description</th>
+            <th className="py-2 font-semibold text-center">Qty</th>
+            <th className="py-2 font-semibold text-right">Unit Price</th>
+            <th className="py-2 font-semibold text-right">VAT %</th>
+            <th className="py-2 font-semibold text-right">VAT (₦)</th>
+            <th className="py-2 font-semibold text-right">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {invoice.items?.map((item) => (
+            <tr key={item.id} className="border-b border-white/[0.04] print:border-gray-300">
+              <td className="py-2.5 text-sm font-medium text-white print:text-black">{item.description}</td>
+              <td className="py-2.5 text-sm text-center text-white/60 print:text-gray-700">{item.quantity}</td>
+              <td className="py-2.5 text-sm text-right text-white/60 print:text-gray-700">₦{item.unit_price.toLocaleString()}</td>
+              <td className="py-2.5 text-sm text-right text-white/60 print:text-gray-700">{item.vat_percent || 0}%</td>
+              <td className="py-2.5 text-sm text-right text-white/60 print:text-gray-700">₦{Number(item.vat_amount || 0).toLocaleString()}</td>
+              <td className="py-2.5 text-sm text-right font-semibold text-white print:text-black">₦{item.total_price.toLocaleString()}</td>
+            </tr>
+          ))}
+          {(!invoice.items || invoice.items.length === 0) && (
+            <tr>
+              <td colSpan={6} className="py-3 text-sm text-white/40 print:text-gray-500">No line items.</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+
+      {/* Totals */}
+      <div className="flex justify-end">
+        <div className="w-full sm:w-72 space-y-1.5 text-sm">
+          <div className="flex justify-between">
+            <span className="text-white/50 print:text-gray-600">Sub Total</span>
+            <span className="text-white print:text-black">₦{invoice.subtotal.toLocaleString()}</span>
+          </div>
+          {invoice.discount_amount > 0 && (
+            <div className="flex justify-between">
+              <span className="text-white/50 print:text-gray-600">Discount</span>
+              <span className="text-red-400 print:text-red-600">-₦{invoice.discount_amount.toLocaleString()}</span>
+            </div>
+          )}
+          <div className="flex justify-between">
+            <span className="text-white/50 print:text-gray-600">VAT Amount</span>
+            <span className="text-white print:text-black">₦{invoice.tax_amount.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between font-bold text-base border-t border-white/[0.08] print:border-gray-400 pt-1.5">
+            <span className="text-white print:text-black">Total Due</span>
+            <span className="text-white print:text-black">₦{invoice.total_amount.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between text-emerald-400 print:text-green-700 font-semibold">
+            <span>Paid</span>
+            <span>₦{invoice.paid_amount.toLocaleString()}</span>
+          </div>
+          {outstanding > 0 && invoice.status !== "cancelled" && (
+            <div className="flex justify-between text-amber-400 print:text-amber-700 font-bold border-t border-white/[0.08] print:border-gray-400 pt-1.5">
+              <span>Balance Due</span>
+              <span>₦{outstanding.toLocaleString()}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {invoice.notes && (
+        <div className="mt-4 pt-3 border-t border-white/[0.06] print:border-gray-300">
+          <p className="text-[10px] uppercase tracking-wider text-white/40 print:text-gray-500 font-semibold">Notes</p>
+          <p className="text-sm text-white/80 print:text-gray-700 mt-0.5">{invoice.notes}</p>
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="mt-6 pt-4 border-t border-white/[0.06] print:border-gray-300 flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          {org.logo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={org.logo_url} alt="" className="w-6 h-6 rounded object-cover" />
+          ) : (
+            <Receipt className="w-4 h-4 text-[#e0a84a] print:text-gray-500" />
+          )}
+          <span className="text-xs text-white/60 print:text-gray-600">{org.name}</span>
+        </div>
+        <p className="text-xs text-white/40 print:text-gray-500">
+          {[org.email, org.website].filter(Boolean).join("  •  ")}{org.email || org.website ? "  •  " : ""}
+          bills@lifeblossomcares.com.ng
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ──────────────────────────────────────────────────
 
 export default function AdminInvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [showPayment, setShowPayment] = useState(false);
   const [voiding, setVoiding] = useState(false);
+  const [org, setOrg] = useState<OrgProfile>(DEFAULT_ORG);
 
   const invoices = usePaymentStore((s) => s.invoices);
   const loading = usePaymentStore((s) => s.loading);
   const fetchInvoices = usePaymentStore((s) => s.fetchInvoices);
 
   useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
+
+  useEffect(() => {
+    fetch("/api/org")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success) {
+          setOrg({
+            name: json.data.name || DEFAULT_ORG.name,
+            logo_url: json.data.logo_url || null,
+            address: json.data.address || "",
+            phone: json.data.phone || "",
+            email: json.data.email || "",
+            website: json.data.website || "",
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const invoice = invoices.find((i) => i.id === id);
 
@@ -233,16 +445,12 @@ export default function AdminInvoiceDetailPage({ params }: { params: Promise<{ i
     );
   }
 
-  const outstanding = invoice.total_amount - invoice.paid_amount;
   const isActive = invoice.status === "pending" || invoice.status === "partially_paid";
-  const patientName = invoice.patient?.user
-    ? `${invoice.patient.user.first_name} ${invoice.patient.user.last_name}`
-    : "Unknown";
 
   return (
-    <div className="max-w-3xl space-y-5">
+    <div className="max-w-3xl space-y-5 print:space-y-0">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between print:hidden">
         <Link href="/admin/billing"
           className="inline-flex items-center gap-1.5 text-sm text-[#e0a84a] font-medium hover:underline">
           <ArrowLeft className="w-4 h-4" />Billing
@@ -268,103 +476,13 @@ export default function AdminInvoiceDetailPage({ params }: { params: Promise<{ i
         </div>
       </div>
 
-      {/* Invoice card */}
-      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-xl p-5 print:p-0" id="invoice-print">
-        {/* Header section */}
-        <div className="flex items-start justify-between mb-5 pb-4 border-b border-white/[0.06]">
-          <div>
-            <p className="text-xs text-white/50">INVOICE</p>
-            <h2 className="text-xl font-bold text-white">{invoice.invoice_number}</h2>
-            <p className="text-sm text-white/50 mt-0.5">Issued: {formatDate(invoice.issue_date)}</p>
-            {invoice.due_date && (
-              <p className="text-sm text-white/50">Due: {formatDate(invoice.due_date)}</p>
-            )}
-          </div>
-          <div className="text-right">
-            <Badge variant={statusStyles[invoice.status] || "secondary"} className="text-xs">
-              {statusLabels[invoice.status] || invoice.status}
-            </Badge>
-            {outstanding > 0 && invoice.status !== "cancelled" && (
-              <p className="text-xs text-amber-400 font-medium mt-1">{formatCurrency(outstanding)} outstanding</p>
-            )}
-          </div>
-        </div>
+      {/* Invoice document */}
+      <InvoiceDocument invoice={invoice} org={org} />
 
-        {/* Patient info */}
-        <div className="mb-5">
-          <p className="text-xs text-white/50 uppercase tracking-wider mb-1">Patient</p>
-          <p className="text-sm font-semibold text-white">{patientName}</p>
-          {invoice.patient?.patient_number && (
-            <p className="text-xs text-white/50">{invoice.patient.patient_number}</p>
-          )}
-        </div>
-
-        {/* Line items */}
-        <table className="w-full text-sm mb-5">
-          <thead>
-            <tr className="border-b border-white/[0.06] text-left text-xs text-white/40">
-              <th className="pb-2 font-medium">Service</th>
-              <th className="pb-2 font-medium text-center">Qty</th>
-              <th className="pb-2 font-medium text-right">Unit Price</th>
-              <th className="pb-2 font-medium text-right">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {invoice.items?.map((item) => (
-              <tr key={item.id} className="border-b border-white/[0.04]">
-                <td className="py-2.5 text-sm font-medium text-white">{item.description}</td>
-                <td className="py-2.5 text-sm text-center text-white/50">{item.quantity}</td>
-                <td className="py-2.5 text-sm text-right text-white/50">₦{item.unit_price.toLocaleString()}</td>
-                <td className="py-2.5 text-sm text-right font-semibold text-white">₦{item.total_price.toLocaleString()}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {/* Totals */}
-        <div className="border-t border-white/[0.06] pt-3 space-y-1.5 text-sm ml-auto w-64">
-          <div className="flex justify-between">
-            <span className="text-white/50">Subtotal</span>
-            <span className="text-white">₦{invoice.subtotal.toLocaleString()}</span>
-          </div>
-          {invoice.discount_amount > 0 && (
-            <div className="flex justify-between">
-              <span className="text-white/50">Discount</span>
-              <span className="text-red-400">-₦{invoice.discount_amount.toLocaleString()}</span>
-            </div>
-          )}
-          {invoice.tax_amount > 0 && (
-            <div className="flex justify-between">
-              <span className="text-white/50">Tax</span>
-              <span className="text-white">₦{invoice.tax_amount.toLocaleString()}</span>
-            </div>
-          )}
-          <div className="flex justify-between font-bold text-base border-t border-white/[0.06] pt-1.5">
-            <span className="text-white">Total</span>
-            <span className="text-white">₦{invoice.total_amount.toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between text-emerald-400 font-semibold">
-            <span>Paid</span>
-            <span>₦{invoice.paid_amount.toLocaleString()}</span>
-          </div>
-          {outstanding > 0 && invoice.status !== "cancelled" && (
-            <div className="flex justify-between text-amber-400 font-bold border-t border-white/[0.06] pt-1.5">
-              <span>Outstanding</span>
-              <span>₦{outstanding.toLocaleString()}</span>
-            </div>
-          )}
-        </div>
-
-        {invoice.notes && (
-          <div className="mt-4 pt-3 border-t border-white/[0.06]">
-            <p className="text-xs text-white/50">Notes</p>
-            <p className="text-sm text-white/80 mt-0.5">{invoice.notes}</p>
-          </div>
-        )}
+      {/* Payment Timeline (screen only) */}
+      <div className="print:hidden">
+        <PaymentTimeline payments={invoice.payments || []} />
       </div>
-
-      {/* Payment Timeline */}
-      <PaymentTimeline payments={invoice.payments || []} />
 
       {/* Record Payment Dialog */}
       {showPayment && (

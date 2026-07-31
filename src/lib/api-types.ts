@@ -169,6 +169,14 @@ export interface Invoice {
   status: InvoiceStatus;
   due_date: string | null;
   notes: string | null;
+  attending_staff_id: string | null;
+  attending_staff?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    role: string;
+    avatar_url?: string | null;
+  } | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -184,6 +192,8 @@ export interface InvoiceItem {
   description: string;
   quantity: number;
   unit_price: number;
+  vat_percent: number;
+  vat_amount: number;
   total_price: number;
   created_at: string;
 }
