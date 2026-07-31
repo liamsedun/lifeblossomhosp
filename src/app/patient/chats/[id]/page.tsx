@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, Check, CheckCheck, Loader2, Send, Smile } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
-import { chatTime, initials, roleLabel, useChatPresence, useChatRealtime } from "@/lib/chat";
+import { chatTime, initials, mergeMessage, roleLabel, useChatPresence, useChatRealtime } from "@/lib/chat";
 import type { ChatMessage, ChatOtherUser, ChatWindowResponse } from "@/lib/api-types";
 
 const QUICK_REPLIES = ["Thank you", "Noted", "Okay, noted", "I'll be there", "Thanks, doctor"];
@@ -88,31 +88,9 @@ export default function PatientChatWindowPage() {
   // Realtime: live incoming messages
   useChatRealtime(chatId, (msg) => {
     setMessages((prev) => {
-      if (prev.some((m) => m.id === msg.id)) return prev;
-      if (msg.sender_id === user?.id) {
-        // Own message: realtime echoes our own insert — promote the optimistic
-        // temp entry (same sender + content, sent moments ago) instead of
-        // appending, so the message never renders twice.
-        const tempIdx = prev.findIndex(
-          (m) =>
-            m.id.startsWith("temp-") &&
-            m.sender_id === msg.sender_id &&
-            m.message === msg.message &&
-            Date.now() - new Date(m.created_at).getTime() < 10_000
-        );
-        if (tempIdx >= 0) {
-          const next = [...prev];
-          next[tempIdx] = { ...msg };
-          return next;
-        }
-        // No optimistic match (e.g. sent from another tab) — append fresh.
-        const next = [...prev, msg];
-        if (next.length > 200) next.splice(0, next.length - 200);
-        return next;
-      }
-      const next = [...prev, msg];
-      if (next.length > 200) next.splice(0, next.length - 200);
-      return next;
+      const merged = mergeMessage(prev, msg);
+      if (merged.length > 200) merged.splice(0, merged.length - 200);
+      return merged;
     });
     if (msg.sender_id !== user?.id) {
       markRead();
@@ -130,10 +108,8 @@ export default function PatientChatWindowPage() {
         if (!json.success) return;
         const server = json.data.messages as ChatMessage[];
         setMessages((prev) => {
-          const merged = [...prev];
-          for (const sm of server) {
-            if (!merged.some((m) => m.id === sm.id)) merged.push(sm);
-          }
+          let merged = [...prev];
+          for (const sm of server) merged = mergeMessage(merged, sm);
           merged.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
           if (merged.length > 200) merged.splice(0, merged.length - 200);
           return merged;

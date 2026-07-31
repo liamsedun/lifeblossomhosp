@@ -65,6 +65,34 @@ export function roleTagClass(role?: string | null): string {
   }
 }
 
+// ─── Message merge — bulletproof against duplicates ─────────────
+
+/**
+ * Merge a message into the list without ever creating a visible duplicate.
+ * Handles every arrival order between the optimistic temp entry, the
+ * realtime echo and the POST response:
+ *  1. Same id already present            → no-op
+ *  2. Same sender + identical content +  → replace that entry (promotes a
+ *     sent within the last 30s             temp entry, or swallows a late
+ *                                          echo that raced the POST response)
+ *  3. Otherwise                           → append
+ */
+export function mergeMessage(list: ChatMessage[], msg: ChatMessage): ChatMessage[] {
+  if (list.some((m) => m.id === msg.id)) return list;
+  const idx = list.findIndex(
+    (m) =>
+      m.sender_id === msg.sender_id &&
+      m.message === msg.message &&
+      Math.abs(new Date(m.created_at).getTime() - new Date(msg.created_at).getTime()) < 30_000
+  );
+  if (idx >= 0) {
+    const next = [...list];
+    next[idx] = { ...msg };
+    return next;
+  }
+  return [...list, msg];
+}
+
 // ─── Presence: heartbeat + online set ────────────────────────────
 
 export function useChatPresence(enabled = true) {
