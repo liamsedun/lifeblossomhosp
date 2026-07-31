@@ -24,7 +24,7 @@ export default function Logo({
   const icon = (
     <div
       className="shrink-0 rounded-xl bg-white overflow-hidden flex items-center justify-center shadow-sm ring-1 ring-black/5"
-      style={{ width: iconSize, height: iconSize }}
+      style={{ width: Math.round(iconSize * 1.5), height: Math.round(iconSize * 1.5) }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
