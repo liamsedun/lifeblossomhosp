@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError, resolvePatientId } from "@/lib/api-utils";
+import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError, resolvePatientId, resolveOrgId } from "@/lib/api-utils";
 import { createServiceClient } from "@/lib/supabase/server";
 
 export const GET = withAuth(async (req, supabase, authUserId) => {
@@ -39,6 +39,10 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
 
   const svc = createServiceClient();
 
+  // Resolve org for the invoice (org_id is NOT NULL in the invoices table)
+  const orgId = await resolveOrgId(supabase, authUserId);
+  if (!orgId) return err("User profile not found — org could not be resolved", 404);
+
   // Generate invoice number
   const { count } = await supabase.from("invoices").select("id", { count: "exact", head: true });
   const invoiceNumber = `INV-${String((count || 0) + 1).padStart(4, "0")}`;
@@ -59,6 +63,7 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   const { data: invoice, error: invError } = await svc
     .from("invoices")
     .insert({
+      org_id: orgId,
       patient_id: body.patient_id,
       invoice_number: invoiceNumber,
       issue_date: body.issue_date || new Date().toISOString().split("T")[0],

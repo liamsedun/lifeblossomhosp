@@ -40,10 +40,15 @@ export async function GET(req: NextRequest) {
         const patientId = metadata.patient_id;
         const amountNaira = verification.amount / 100; // kobo → Naira
 
+        // Resolve org from the invoice (payments.org_id is NOT NULL)
+        const { data: inv } = await svc.from("invoices").select("org_id").eq("id", invoiceId).maybeSingle();
+        const orgId = inv?.org_id || null;
+
         // Insert payment record
         const { data: payment, error: payError } = await svc
           .from("payments")
           .insert({
+            org_id: orgId,
             invoice_id: invoiceId,
             patient_id: patientId,
             amount: amountNaira,

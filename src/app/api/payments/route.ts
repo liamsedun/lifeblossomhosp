@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError, resolvePatientId } from "@/lib/api-utils";
+import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError, resolvePatientId, resolveOrgId } from "@/lib/api-utils";
 import { createServiceClient } from "@/lib/supabase/server";
 
 export const GET = withAuth(async (req, supabase, authUserId) => {
@@ -33,9 +33,13 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
 
   const svc = createServiceClient();
 
+  const orgId = await resolveOrgId(supabase, authUserId);
+  if (!orgId) return err("User profile not found — org could not be resolved", 404);
+
   const { data, error } = await svc
     .from("payments")
     .insert({
+      org_id: orgId,
       invoice_id: body.invoice_id,
       patient_id: body.patient_id,
       amount: body.amount,
