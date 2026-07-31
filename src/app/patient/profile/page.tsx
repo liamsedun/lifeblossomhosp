@@ -117,16 +117,29 @@ export default function ProfilePage() {
     setError("");
     setSuccessMsg("");
     try {
+      // Ensure the patient record is loaded before using its id
+      let targetPatientId = patient?.id;
+      if (!targetPatientId) {
+        const meRes = await fetch("/api/patients/me");
+        const meJson = await meRes.json();
+        if (meJson.success) {
+          setPatient(meJson.data);
+          targetPatientId = meJson.data.id;
+        } else {
+          throw new Error("Your patient record could not be loaded. Please refresh the page.");
+        }
+      }
+
       let body: Record<string, any>;
       let endpoint: string;
       let label: string;
 
       if (editingField === "date_of_birth") {
-        endpoint = `/api/patients/${patient!.id}`;
+        endpoint = `/api/patients/${targetPatientId}`;
         body = { date_of_birth: editValue };
         label = "Date of Birth";
       } else if (["marital_status", "blood_group", "genotype", "medical_plan"].includes(editingField)) {
-        endpoint = `/api/patients/${patient!.id}`;
+        endpoint = `/api/patients/${targetPatientId}`;
         body = { [editingField]: editValue };
         label = selectLabels[editingField] || editingField;
       } else if (editingField === "full_name") {
@@ -320,11 +333,11 @@ export default function ProfilePage() {
                       <select
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}
-                        className="flex-1 h-8 text-sm bg-white/[0.04] border border-white/[0.08] rounded-lg px-2 text-white focus:outline-none focus:ring-2 focus:ring-[#e0a84a]/30 [color-scheme:dark]"
+                        className="flex-1 h-8 text-sm bg-[#1a2540] border border-white/[0.15] rounded-lg px-2 text-white focus:outline-none focus:ring-2 focus:ring-[#e0a84a]/30 [color-scheme:dark]"
                         autoFocus
                       >
                         {selectOptions[editingField].map((opt) => (
-                          <option key={opt} value={opt} className="capitalize">
+                          <option key={opt} value={opt} className="capitalize bg-[#1a2540] text-white">
                             {opt === "individual" ? "Individual" : opt === "organisation" ? "Organisation" : opt.charAt(0).toUpperCase() + opt.slice(1)}
                           </option>
                         ))}
@@ -342,7 +355,7 @@ export default function ProfilePage() {
                       type={item.field === "date_of_birth" ? "date" : item.field === "email" ? "email" : "tel"}
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
-                      className="flex-1 h-8 text-sm bg-white/[0.04] border border-white/[0.08] rounded-lg px-2 text-white focus:outline-none focus:ring-2 focus:ring-[#e0a84a]/30 [color-scheme:dark]"
+                      className="flex-1 h-8 text-sm bg-[#1a2540] border border-white/[0.15] rounded-lg px-2 text-white focus:outline-none focus:ring-2 focus:ring-[#e0a84a]/30 [color-scheme:dark]"
                       autoFocus
                     />
                     <button onClick={saveEdit} disabled={saving} className="p-1 text-emerald-400 hover:text-emerald-300 shrink-0">
