@@ -192,7 +192,7 @@ function HospitalInfoTab() {
         if (json.success) {
           setForm({
             name: json.data.name || "",
-            logo_url: json.data.logo_url || "",
+            logo_url: json.data.logo_url || "/images/hosp-logo/life-blossom-logo.png",
             address: json.data.address || "",
             phone: json.data.phone || "",
             email: json.data.email || "",
@@ -266,14 +266,14 @@ function HospitalInfoTab() {
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Logo URL</label>
               <Input
-                placeholder="https://.../logo.png"
+                placeholder="/images/hosp-logo/life-blossom-logo.png"
                 className={inputClass}
                 value={form.logo_url}
                 onChange={(e) => setForm((f) => ({ ...f, logo_url: e.target.value }))}
               />
               {form.logo_url && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={form.logo_url} alt="Logo preview" className="mt-2 h-12 w-12 rounded-md object-cover border border-border" />
+                <img src={form.logo_url} alt="Logo preview" className="mt-2 h-12 w-12 rounded-md bg-white border border-border object-contain p-1" />
               )}
             </div>
             <div>

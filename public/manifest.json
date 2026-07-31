@@ -5,7 +5,7 @@
   "start_url": "/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],
-  "background_color": "#F7F9FC",
+  "background_color": "#FFFFFF",
   "theme_color": "#0F4C81",
   "orientation": "portrait-primary",
   "scope": "/",
@@ -15,10 +15,10 @@
   "prefer_related_applications": false,
   "edge_side_panel": {},
   "icons": [
-    { "src": "/icons/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "/icons/icon-512.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "/icons/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml", "purpose": "maskable" },
-    { "src": "/icons/icon-512.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "maskable" }
+    { "src": "/images/hosp-logo/life-blossom-logo.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/images/hosp-logo/life-blossom-logo.png", "sizes": "500x500", "type": "image/png", "purpose": "any" },
+    { "src": "/images/hosp-logo/life-blossom-logo.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/images/hosp-logo/life-blossom-logo.png", "sizes": "500x500", "type": "image/png", "purpose": "maskable" }
   ],
   "screenshots": [],
   "shortcuts": [
@@ -27,21 +27,21 @@
       "short_name": "Appointments",
       "description": "View upcoming appointments",
       "url": "/patient/appointments",
-      "icons": [{ "src": "/icons/icon-192.svg", "sizes": "192x192" }]
+      "icons": [{ "src": "/images/hosp-logo/life-blossom-logo.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
       "name": "Payments",
       "short_name": "Pay",
       "description": "View bills and make payments",
       "url": "/patient/payments",
-      "icons": [{ "src": "/icons/icon-192.svg", "sizes": "192x192" }]
+      "icons": [{ "src": "/images/hosp-logo/life-blossom-logo.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
       "name": "Admin Dashboard",
       "short_name": "Admin",
       "description": "Hospital administration",
       "url": "/admin",
-      "icons": [{ "src": "/icons/icon-192.svg", "sizes": "192x192" }]
+      "icons": [{ "src": "/images/hosp-logo/life-blossom-logo.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }

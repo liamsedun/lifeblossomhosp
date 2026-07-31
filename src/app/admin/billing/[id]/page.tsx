@@ -41,7 +41,7 @@ interface OrgProfile {
 
 const DEFAULT_ORG: OrgProfile = {
   name: "Life Blossom Hospital",
-  logo_url: null,
+  logo_url: "/images/hosp-logo/life-blossom-logo.png",
   address: "",
   phone: "",
   email: "",
@@ -213,7 +213,7 @@ function InvoiceDocument({ invoice, org }: { invoice: Invoice; org: OrgProfile }
         <div className="flex items-start gap-3">
           {org.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={org.logo_url} alt={org.name} className="w-14 h-14 rounded-lg object-cover print:w-14 print:h-14" />
+            <img src={org.logo_url} alt={org.name} className="w-14 h-14 rounded-lg bg-white object-contain p-1 print:w-14 print:h-14 print:bg-white" />
           ) : (
             <div className="w-14 h-14 rounded-lg bg-[#e0a84a]/10 print:bg-gray-100 flex items-center justify-center">
               <Receipt className="w-7 h-7 text-[#e0a84a] print:text-gray-700" />
@@ -357,7 +357,7 @@ function InvoiceDocument({ invoice, org }: { invoice: Invoice; org: OrgProfile }
         <div className="flex items-center gap-2">
           {org.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={org.logo_url} alt="" className="w-6 h-6 rounded object-cover" />
+            <img src={org.logo_url} alt="" className="w-6 h-6 rounded bg-white object-contain p-0.5" />
           ) : (
             <Receipt className="w-4 h-4 text-[#e0a84a] print:text-gray-500" />
           )}

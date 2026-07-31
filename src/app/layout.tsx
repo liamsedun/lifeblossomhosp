@@ -21,8 +21,8 @@ export const metadata: Metadata = {
     title: "Life Blossom",
   },
   icons: {
-    icon: "/favicon.svg",
-    apple: "/apple-touch-icon.svg",
+    icon: "/images/hosp-logo/life-blossom-logo.png",
+    apple: "/images/hosp-logo/life-blossom-logo.png",
   },
   other: {
     "mobile-web-app-capable": "yes",
@@ -45,8 +45,8 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
       <head>
-        <link rel="apple-touch-icon" href="/apple-touch-icon.svg" />
-        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="apple-touch-icon" href="/images/hosp-logo/life-blossom-logo.png" />
+        <link rel="icon" type="image/png" href="/images/hosp-logo/life-blossom-logo.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Life Blossom" />
