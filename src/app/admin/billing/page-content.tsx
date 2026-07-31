@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
-import { usePaymentStore, selectOverdueInvoices } from "@/stores/payment-store";
+import { usePaymentStore } from "@/stores/payment-store";
 import CreateInvoiceModal from "@/components/billing/create-invoice-modal";
 import type { InvoiceStatus, Invoice } from "@/lib/api-types";
 
@@ -76,7 +76,14 @@ export default function BillingPage() {
   const loading = usePaymentStore((s) => s.loading);
   const totals = usePaymentStore((s) => s.totals);
   const fetchInvoices = usePaymentStore((s) => s.fetchInvoices);
-  const overdueInvoices = usePaymentStore(selectOverdueInvoices);
+
+  const overdueInvoices = useMemo(() => {
+    if (!invoicesData) return [];
+    const now = Date.now();
+    return invoicesData.filter(
+      (i) => i.status === "pending" && !!i.due_date && new Date(i.due_date).getTime() < now
+    );
+  }, [invoicesData]);
 
   useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
 
