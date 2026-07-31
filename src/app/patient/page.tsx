@@ -289,9 +289,9 @@ export default function PatientDashboard() {
 
   return (
     <div className="space-y-5">
-      <div>
+      <div className="space-y-4">
+        <Logo variant="inline" iconSize={28} textClass="text-lg font-bold text-white" />
         <p className="text-white/50 text-sm">Welcome back{user ? `, ${user.first_name}` : ""}</p>
-        <Logo variant="inline" iconSize={28} textClass="text-xl font-bold text-white" />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
