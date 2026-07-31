@@ -6,6 +6,17 @@ import type { ChatMessage } from "@/lib/api-types";
 
 // ─── Formatting helpers ──────────────────────────────────────────
 
+/**
+ * Supabase Realtime channels are singletons per browser client — two hooks
+ * using the same channel name will crash with "cannot add postgres_changes
+ * callbacks after subscribe()". Give every hook instance its own channel.
+ */
+let channelSeq = 0;
+function uniqueChannel(base: string): string {
+  channelSeq += 1;
+  return `${base}-${channelSeq}-${Date.now().toString(36)}`;
+}
+
 export function chatTime(iso: string): string {
   const d = new Date(iso);
   const now = new Date();
@@ -82,7 +93,7 @@ export function useChatPresence(enabled = true) {
 
     // Live presence updates via Realtime
     const channel = supabase
-      .channel("chat-presence")
+      .channel(uniqueChannel("chat-presence"))
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "chat_presence" },
@@ -115,7 +126,7 @@ export function useChatRealtime(chatId: string | null, onNewMessage: (msg: ChatM
     const supabase = createClient();
 
     const channel = supabase
-      .channel(`chat-${chatId}`)
+      .channel(uniqueChannel(`chat-${chatId}`))
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "chat_messages", filter: `chat_id=eq.${chatId}` },
@@ -150,7 +161,7 @@ export function useInboxRealtime(enabled: boolean, onEvent: (ev: InboxEvent) => 
     const supabase = createClient();
 
     const channel = supabase
-      .channel("chat-inbox")
+      .channel(uniqueChannel("chat-inbox"))
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "chat_messages" },
