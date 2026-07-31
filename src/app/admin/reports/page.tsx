@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   TrendingUp, Calendar, Users, Clock, Download, DollarSign, Activity, Printer,
 } from "lucide-react";
@@ -20,6 +20,14 @@ import { useInvoices } from "@/hooks/use-billing";
 import { useStaff } from "@/hooks/use-staff";
 import { Loader2 } from "lucide-react";
 import type { Invoice, Appointment } from "@/lib/api-types";
+
+interface OtherIncomeRecord {
+  id: string;
+  description: string;
+  category: string;
+  amount: number;
+  income_date: string;
+}
 
 const CHART_COLORS = ["#e0a84a", "#16A34A", "#0891B2", "#F39C12", "#E74C3C", "#8B5CF6", "#6366F1", "#EC4898"];
 
@@ -48,23 +56,47 @@ export default function ReportsPage() {
   const { data: patients, loading: patLoading } = usePatients();
   const { data: invoices, loading: invLoading } = useInvoices();
   const { data: staff, loading: staffLoading } = useStaff();
-  const loading = aptLoading || patLoading || invLoading || staffLoading;
+  const [otherIncomeData, setOtherIncomeData] = useState<OtherIncomeRecord[]>([]);
+  const [loadingOtherIncome, setLoadingOtherIncome] = useState(true);
+  const loading = aptLoading || patLoading || invLoading || staffLoading || loadingOtherIncome;
+
+  useEffect(() => {
+    fetch("/api/other-income?page_size=500")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success) setOtherIncomeData(json.data || []);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingOtherIncome(false));
+  }, []);
 
   const kpis = useMemo(() => {
-    const totalRevenue = (invoices || []).filter((i) => i.status === "paid" || i.status === "partially_paid")
+    const medRev = (invoices || []).filter((i) => i.status === "paid" || i.status === "partially_paid")
       .reduce((sum, i) => sum + i.total_amount, 0);
+    const othRev = otherIncomeData.reduce((sum, r) => sum + r.amount, 0);
+    const totalRevenue = medRev + othRev;
 
     const prevMonthRev = (invoices || []).filter((i) => {
       const d = new Date(i.issue_date);
       const now = new Date();
       return d >= new Date(now.getFullYear(), now.getMonth() - 1, 1) && d < new Date(now.getFullYear(), now.getMonth(), 1);
-    }).reduce((sum, i) => sum + (i.status === "paid" || i.status === "partially_paid" ? i.total_amount : 0), 0);
+    }).reduce((sum, i) => sum + (i.status === "paid" || i.status === "partially_paid" ? i.total_amount : 0), 0)
+    + otherIncomeData.filter((r) => {
+      const d = new Date(r.income_date);
+      const now = new Date();
+      return d >= new Date(now.getFullYear(), now.getMonth() - 1, 1) && d < new Date(now.getFullYear(), now.getMonth(), 1);
+    }).reduce((sum, r) => sum + r.amount, 0);
 
     const thisMonthRev = (invoices || []).filter((i) => {
       const d = new Date(i.issue_date);
       const now = new Date();
       return d >= new Date(now.getFullYear(), now.getMonth(), 1);
-    }).reduce((sum, i) => sum + (i.status === "paid" || i.status === "partially_paid" ? i.total_amount : 0), 0);
+    }).reduce((sum, i) => sum + (i.status === "paid" || i.status === "partially_paid" ? i.total_amount : 0), 0)
+    + otherIncomeData.filter((r) => {
+      const d = new Date(r.income_date);
+      const now = new Date();
+      return d >= new Date(now.getFullYear(), now.getMonth(), 1);
+    }).reduce((sum, r) => sum + r.amount, 0);
 
     const monthApts = (appointments || []).filter((a) => {
       const d = new Date(a.appointment_date);
@@ -87,12 +119,11 @@ export default function ReportsPage() {
       monthAppointments: monthApts,
       newPatients: newPatientsThisMonth,
     };
-  }, [invoices, appointments, patients]);
+  }, [invoices, appointments, patients, otherIncomeData]);
 
   const revenueTrendData = useMemo(() => {
-    if (!invoices || invoices.length === 0) return [];
-    const byMonth: Record<string, number> = {};
     const now = new Date();
+    const byMonth: Record<string, number> = {};
     for (let i = 11; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const key = d.toLocaleString("default", { month: "short", year: "2-digit" });
@@ -103,8 +134,13 @@ export default function ReportsPage() {
       const key = d.toLocaleString("default", { month: "short", year: "2-digit" });
       if (byMonth[key] !== undefined) byMonth[key] += i.total_amount;
     });
+    otherIncomeData.forEach((r) => {
+      const d = new Date(r.income_date);
+      const key = d.toLocaleString("default", { month: "short", year: "2-digit" });
+      if (byMonth[key] !== undefined) byMonth[key] += r.amount;
+    });
     return Object.entries(byMonth).map(([month, amount]) => ({ month, amount }));
-  }, [invoices]);
+  }, [invoices, otherIncomeData]);
 
   const deptPieData = useMemo(() => {
     if (!appointments) return [];
