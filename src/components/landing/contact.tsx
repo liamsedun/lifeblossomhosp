@@ -1,4 +1,4 @@
-import { Phone, Mail, MapPin, MessageCircle, Clock } from "lucide-react";
+import { Phone, Mail, Globe, MapPin, MessageCircle, Clock } from "lucide-react";
 
 export default function Contact() {
   return (
@@ -79,11 +79,28 @@ export default function Contact() {
                 <div>
                   <p className="text-sm font-semibold text-[#1F2D3D]">Email</p>
                   <p className="text-sm text-[#6B7A90]">
-                    lifeblossomcarencurehospital@mail.com
+                    hello@lifeblossomcares.com.ng
                   </p>
                   <p className="text-sm text-[#6B7A90]">
                     lifeblossomcarencurehospital@mail.com
                   </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary-lighter text-primary">
+                  <Globe size={20} />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-[#1F2D3D]">Website</p>
+                  <a
+                    href="https://www.lifeblossomcares.com.ng"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-[#6B7A90] transition-colors hover:text-primary"
+                  >
+                    www.lifeblossomcares.com.ng
+                  </a>
                 </div>
               </div>
 

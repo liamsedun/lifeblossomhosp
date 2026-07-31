@@ -299,7 +299,7 @@ function HospitalInfoTab() {
                 <label className="block text-sm font-medium text-foreground mb-1">Email</label>
                 <Input
                   type="email"
-                  placeholder="e.g. info@lifeblossomcares.com.ng"
+                  placeholder="e.g. hello@lifeblossomcares.com.ng"
                   className={inputClass}
                   value={form.email}
                   onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
@@ -309,7 +309,7 @@ function HospitalInfoTab() {
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Website</label>
               <Input
-                placeholder="e.g. https://lifeblossomcares.com.ng"
+                placeholder="e.g. https://www.lifeblossomcares.com.ng"
                 className={inputClass}
                 value={form.website}
                 onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))}

@@ -68,10 +68,20 @@ export default function Footer() {
               </li>
               <li>
                 <a
-                   href="mailto:lifeblossomcarencurehospital@mail.com"
+                   href="mailto:hello@lifeblossomcares.com.ng"
                   className="transition-colors hover:text-accent"
                 >
-                  info@lifeblossomhospital.com
+                  hello@lifeblossomcares.com.ng
+                </a>
+              </li>
+              <li>
+                <a
+                   href="https://www.lifeblossomcares.com.ng"
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   className="transition-colors hover:text-accent"
+                >
+                  www.lifeblossomcares.com.ng
                 </a>
               </li>
             </ul>
