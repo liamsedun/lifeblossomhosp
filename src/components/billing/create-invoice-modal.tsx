@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Plus, Trash2, Loader2, Search, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -45,10 +45,15 @@ export default function CreateInvoiceModal({ open, onClose, onSuccess }: Props) 
   const [searching, setSearching] = useState(false);
   const [dueDate, setDueDate] = useState("");
   const [notes, setNotes] = useState("");
-  const [items, setItems] = useState<LineItem[]>([
-    { id: crypto.randomUUID(), description: "", quantity: 1, unit_price: 0, category: "consultation" },
-  ]);
+  const [items, setItems] = useState<LineItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
+
+  // Add first empty row on client mount to avoid hydration mismatch from crypto.randomUUID()
+  useEffect(() => {
+    if (items.length === 0) {
+      setItems([{ id: crypto.randomUUID(), description: "", quantity: 1, unit_price: 0, category: "consultation" }]);
+    }
+  }, []);
   const [taxPercent, setTaxPercent] = useState(0);
   const [discountAmount, setDiscountAmount] = useState(0);
 

@@ -14,9 +14,12 @@ export default function Error({
       </div>
       <h1 className="mt-6 text-3xl font-bold text-[#1F2D3D]">Something Went Wrong</h1>
       <p className="mt-3 max-w-md text-[#6B7A90] leading-relaxed">
-        An unexpected error occurred. Please try again or contact us if the
-        problem persists.
+        {error.message || "An unexpected error occurred."}
       </p>
+      <details className="mt-2 max-w-md text-xs text-left text-[#6B7A90] bg-gray-100 p-3 rounded-lg overflow-auto max-h-40">
+        <summary>Error details</summary>
+        <pre className="mt-2 whitespace-pre-wrap">{error.stack || error.message}</pre>
+      </details>
       <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
         <button
           onClick={reset}

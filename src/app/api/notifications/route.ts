@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { withAuth, ok, paginated, err, getPagination, parseBody, ValidationError, resolveOrgId } from "@/lib/api-utils";
+import { createServiceClient } from "@/lib/supabase/server";
 
 export const GET = withAuth(async (req, supabase, authUserId) => {
   const sp = new URL(req.url).searchParams;
@@ -17,7 +18,8 @@ export const GET = withAuth(async (req, supabase, authUserId) => {
 
 export const PUT = withAuth(async (req, supabase) => {
   // Mark all as read
-  const { data, error } = await supabase.from("notifications").update({ is_read: true }).select();
+  const svc = createServiceClient();
+  const { data, error } = await svc.from("notifications").update({ is_read: true }).select();
   if (error) return err(error.message, 500);
   return ok(data);
 });
@@ -35,7 +37,8 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   const orgId = await resolveOrgId(supabase, authUserId);
   if (!orgId) return err("User profile not found", 404);
 
-  const { data, error } = await supabase.from("notifications").insert({
+  const svc = createServiceClient();
+  const { data, error } = await svc.from("notifications").insert({
     org_id: orgId,
     user_id: body.user_id,
     type: body.type,

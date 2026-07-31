@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { withAuth, ok, err, parseBody } from "@/lib/api-utils";
+import { createServiceClient } from "@/lib/supabase/server";
 
 export const GET = withAuth(async (req, supabase, _uid, context) => {
   const { id } = await context.params;
@@ -13,6 +14,7 @@ export const GET = withAuth(async (req, supabase, _uid, context) => {
 
 export const PUT = withAuth(async (req, supabase, _uid, context) => {
   const { id } = await context.params;
+  const svc = createServiceClient();
   const body = await parseBody<any>(req);
 
   const { data: existing } = await supabase.from("prescriptions").select("id").eq("id", id).single();
@@ -23,12 +25,12 @@ export const PUT = withAuth(async (req, supabase, _uid, context) => {
   for (const k of allowed) if (body[k] !== undefined) updates[k] = body[k];
 
   if (body.items && Array.isArray(body.items)) {
-    await supabase.from("prescription_items").delete().eq("prescription_id", id);
+    await svc.from("prescription_items").delete().eq("prescription_id", id);
     const newItems = body.items.map((it: any) => ({ ...it, prescription_id: id }));
-    await supabase.from("prescription_items").insert(newItems);
+    await svc.from("prescription_items").insert(newItems);
   }
 
-  const { data, error } = await supabase.from("prescriptions").update(updates).eq("id", id)
+  const { data, error } = await svc.from("prescriptions").update(updates).eq("id", id)
     .select("*, patient:patients(*, user:users(id, first_name, last_name)), doctor:staff!doctor_id(*, user:users(id, first_name, last_name)), items:prescription_items(*)")
     .single();
   if (error) return err(error.message, 500);
@@ -37,9 +39,10 @@ export const PUT = withAuth(async (req, supabase, _uid, context) => {
 
 export const DELETE = withAuth(async (req, supabase, _uid, context) => {
   const { id } = await context.params;
+  const svc = createServiceClient();
   const { data: existing } = await supabase.from("prescriptions").select("id").eq("id", id).single();
   if (!existing) return err("Not found", 404);
-  const { error } = await supabase.from("prescriptions").delete().eq("id", id);
+  const { error } = await svc.from("prescriptions").delete().eq("id", id);
   if (error) return err(error.message, 500);
   return ok(null);
 });

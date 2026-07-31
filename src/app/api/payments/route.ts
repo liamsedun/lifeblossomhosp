@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError, resolvePatientId } from "@/lib/api-utils";
+import { createServiceClient } from "@/lib/supabase/server";
 
 export const GET = withAuth(async (req, supabase, authUserId) => {
   const sp = new URL(req.url).searchParams;
@@ -30,7 +31,9 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
     throw new ValidationError("Missing required fields: invoice_id, patient_id, amount, payment_method");
   }
 
-  const { data, error } = await supabase
+  const svc = createServiceClient();
+
+  const { data, error } = await svc
     .from("payments")
     .insert({
       invoice_id: body.invoice_id,
@@ -52,7 +55,7 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   if (invoice) {
     const newPaid = (invoice.paid_amount || 0) + body.amount;
     const newStatus = newPaid >= invoice.total_amount ? "paid" : "partially_paid";
-    await supabase.from("invoices").update({ paid_amount: newPaid, status: newStatus }).eq("id", body.invoice_id);
+    await svc.from("invoices").update({ paid_amount: newPaid, status: newStatus }).eq("id", body.invoice_id);
   }
 
   return ok(data, 201);

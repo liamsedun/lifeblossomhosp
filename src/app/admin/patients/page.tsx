@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Search, Plus, Eye, MoreHorizontal, Phone, Mail,
   Calendar, MapPin, Loader2, PenLine, Trash2, Clock,
+  User, FileText,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ import {
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { cn, formatDate } from "@/lib/utils";
 import { usePatients, useCreatePatient } from "@/hooks/use-patients";
+import DoctorNotesSection from "@/components/DoctorNotesSection";
 import type { Patient } from "@/lib/api-types";
 
 interface PatientForm {
@@ -124,10 +126,18 @@ export default function PatientsPage() {
     setFormError("");
   }
 
-  const getAge = (dob: string | null) => {
-    if (!dob) return 0;
-    return Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 86400000));
+  const getAge = (dob: string | null | undefined) => {
+    if (!dob) return "—";
+    const birthDate = new Date(dob);
+    if (isNaN(birthDate.getTime())) return "—";
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) age--;
+    return age;
   };
+
+  const capitalize = (s: string | null | undefined) => s ? s.charAt(0).toUpperCase() + s.slice(1) : "—";
 
   return (
     <div className="space-y-5">
@@ -254,7 +264,7 @@ export default function PatientsPage() {
 
       {/* View Patient Dialog */}
       <Dialog open={!!selectedPatient} onOpenChange={(o) => { if (!o) setSelectedPatient(null); }}>
-        <DialogContent className="max-w-md border-white/[0.06] bg-[#0d1322]/95 backdrop-blur-xl text-white">
+        <DialogContent className="max-w-2xl border-white/[0.06] bg-[#0d1322]/95 backdrop-blur-xl text-white max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-white">
               {selectedPatient?.user ? `${selectedPatient.user.first_name} ${selectedPatient.user.last_name}` : "Patient"}
@@ -262,46 +272,68 @@ export default function PatientsPage() {
             <DialogDescription className="text-white/50">Patient ID: {selectedPatient?.patient_number}</DialogDescription>
           </DialogHeader>
           {selectedPatient && (
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-white/40 text-xs">Gender</p>
-                <p className="font-medium text-white">{selectedPatient.gender || "—"}</p>
-              </div>
-              <div>
-                <p className="text-white/40 text-xs">Age</p>
-                <p className="font-medium text-white">{getAge(selectedPatient.date_of_birth)}</p>
-              </div>
-              <div>
-                <p className="text-white/40 text-xs">Blood Group</p>
-                <p className="font-medium text-white">{selectedPatient.blood_group || "—"}</p>
-              </div>
-              <div>
-                <p className="text-white/40 text-xs">Status</p>
-                <Badge className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Active</Badge>
-              </div>
-              <div className="col-span-2">
-                <p className="text-white/40 text-xs">Address</p>
-                <p className="font-medium text-white">{selectedPatient.address || "—"}</p>
-              </div>
-              <div className="col-span-2 flex items-center gap-4 pt-2 border-t border-white/[0.06]">
-                <span className="flex items-center gap-1.5 text-xs text-white/50">
-                  <Phone className="size-3.5" />{selectedPatient.user?.phone || "—"}
-                </span>
-                <span className="flex items-center gap-1.5 text-xs text-white/50">
-                  <Mail className="size-3.5" />{selectedPatient.user?.email || "—"}
-                </span>
-              </div>
-            </div>
+            <Tabs defaultValue="info" className="mt-2">
+              <TabsList className="bg-white/[0.04] border border-white/[0.06]">
+                <TabsTrigger value="info" className="text-xs data-[state=active]:bg-white/[0.08] data-[state=active]:text-white text-white/50">
+                  <User className="size-3.5 mr-1" />Patient Info
+                </TabsTrigger>
+                <TabsTrigger value="clinical-notes" className="text-xs data-[state=active]:bg-white/[0.08] data-[state=active]:text-white text-white/50">
+                  <FileText className="size-3.5 mr-1" />Clinical Notes
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="info" className="mt-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-white/40 text-xs">Gender</p>
+                    <p className="font-medium text-white">{capitalize(selectedPatient.gender)}</p>
+                  </div>
+                  <div>
+                    <p className="text-white/40 text-xs">Age</p>
+                    <p className="font-medium text-white">{getAge(selectedPatient.date_of_birth)}</p>
+                  </div>
+                  <div>
+                    <p className="text-white/40 text-xs">Blood Group</p>
+                    <p className="font-medium text-white">{selectedPatient.blood_group || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-white/40 text-xs">Status</p>
+                    <Badge className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Active</Badge>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-white/40 text-xs">Address</p>
+                    <p className="font-medium text-white">{[selectedPatient.address, selectedPatient.city, selectedPatient.state].filter(Boolean).join(", ") || "—"}</p>
+                  </div>
+                  <div className="col-span-2 flex items-center gap-4 pt-2 border-t border-white/[0.06]">
+                    <span className="flex items-center gap-1.5 text-xs text-white/50">
+                      <Phone className="size-3.5" />{selectedPatient.user?.phone ? <a href={`tel:${selectedPatient.user.phone}`} className="text-blue-400 hover:underline">{selectedPatient.user.phone}</a> : "—"}
+                    </span>
+                    <span className="flex items-center gap-1.5 text-xs text-white/50">
+                      <Mail className="size-3.5" />{selectedPatient.user?.email ? <a href={`mailto:${selectedPatient.user.email}`} className="text-blue-400 hover:underline">{selectedPatient.user.email}</a> : "—"}
+                    </span>
+                  </div>
+                </div>
+                <DialogFooter className="mt-4 pt-4 border-t border-white/[0.06]">
+                  <DialogClose asChild>
+                    <Button variant="outline" className="border-white/[0.08] text-white/70 hover:bg-white/[0.06]">Close</Button>
+                  </DialogClose>
+                  <Button onClick={() => { if (selectedPatient) openEdit(selectedPatient); setSelectedPatient(null); }}
+                    className="bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] font-semibold border-0">
+                    <PenLine className="size-4 mr-1" />Edit
+                  </Button>
+                </DialogFooter>
+              </TabsContent>
+
+              <TabsContent value="clinical-notes" className="mt-4">
+                <DoctorNotesSection patientId={selectedPatient.id} />
+                <DialogFooter className="mt-4 pt-4 border-t border-white/[0.06]">
+                  <DialogClose asChild>
+                    <Button variant="outline" className="border-white/[0.08] text-white/70 hover:bg-white/[0.06]">Close</Button>
+                  </DialogClose>
+                </DialogFooter>
+              </TabsContent>
+            </Tabs>
           )}
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline" className="border-white/[0.08] text-white/70 hover:bg-white/[0.06]">Close</Button>
-            </DialogClose>
-            <Button onClick={() => { if (selectedPatient) openEdit(selectedPatient); setSelectedPatient(null); }}
-              className="bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] font-semibold border-0">
-              <PenLine className="size-4 mr-1" />Edit
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 

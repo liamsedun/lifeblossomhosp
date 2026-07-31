@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { withAuth, ok, paginated, err, parseBody, getPagination } from "@/lib/api-utils";
+import { createServiceClient } from "@/lib/supabase/server";
 
 export const GET = withAuth(async (req, supabase, authUserId) => {
   // Verify caller is super_admin or admin
@@ -80,7 +81,8 @@ export const PATCH = withAuth(async (req, supabase, authUserId) => {
 
   if (Object.keys(updates).length === 0) return err("No fields to update", 400);
 
-  const { error } = await supabase.from("users").update(updates).eq("id", body.user_id);
+  const svc = createServiceClient();
+  const { error } = await svc.from("users").update(updates).eq("id", body.user_id);
   if (error) return err(error.message, 500);
   return ok({ updated: true });
 });

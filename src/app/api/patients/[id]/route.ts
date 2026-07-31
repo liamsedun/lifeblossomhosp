@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { withAuth, ok, err, parseBody, resolvePatientId } from "@/lib/api-utils";
+import { createServiceClient } from "@/lib/supabase/server";
 
 // GET /api/patients/:id — patient can only see own record
 export const GET = withAuth(async (req, supabase, authUserId, context) => {
@@ -21,6 +22,7 @@ export const GET = withAuth(async (req, supabase, authUserId, context) => {
 // PUT /api/patients/:id — patient can only update own record
 export const PUT = withAuth(async (req, supabase, authUserId, context) => {
   const { id } = await context.params;
+  const svc = createServiceClient();
 
   const myId = await resolvePatientId(supabase, authUserId);
   if (myId && myId !== id) return err("Not found", 404);
@@ -33,7 +35,7 @@ export const PUT = withAuth(async (req, supabase, authUserId, context) => {
   for (const k of ["first_name", "last_name", "phone"] as const)
     if (body[k] !== undefined) userFields[k] = body[k];
   if (Object.keys(userFields).length) {
-    const { error: ue } = await supabase.from("users").update(userFields).eq("id", existing.user_id);
+    const { error: ue } = await svc.from("users").update(userFields).eq("id", existing.user_id);
     if (ue) return err(ue.message, 500);
   }
 
@@ -43,7 +45,7 @@ export const PUT = withAuth(async (req, supabase, authUserId, context) => {
     "emergency_contact_name", "emergency_contact_phone", "emergency_contact_rel"] as const)
     if (body[k] !== undefined && body[k] !== "") patientFields[k] = body[k];
 
-  const { data, error } = await supabase.from("patients").update(patientFields).eq("id", id)
+  const { data, error } = await svc.from("patients").update(patientFields).eq("id", id)
     .select("*, user:users(id, org_id, email, role, first_name, last_name, phone, avatar_url, is_active)").single();
   if (error) return err(error.message, 500);
   return ok(data);
@@ -52,9 +54,10 @@ export const PUT = withAuth(async (req, supabase, authUserId, context) => {
 // DELETE /api/patients/:id — soft-delete (admin only by middleware + authUserId check)
 export const DELETE = withAuth(async (req, supabase, authUserId, context) => {
   const { id } = await context.params;
+  const svc = createServiceClient();
   const { data: p } = await supabase.from("patients").select("id, user_id").eq("id", id).single();
   if (!p) return err("Not found", 404);
-  const { error } = await supabase.from("users").update({ is_active: false }).eq("id", p.user_id);
+  const { error } = await svc.from("users").update({ is_active: false }).eq("id", p.user_id);
   if (error) return err(error.message, 500);
   return ok(null);
 });

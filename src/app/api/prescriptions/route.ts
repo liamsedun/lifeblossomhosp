@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError } from "@/lib/api-utils";
+import { createServiceClient } from "@/lib/supabase/server";
 
 export const GET = withAuth(async (req, supabase) => {
   const sp = new URL(req.url).searchParams;
@@ -37,7 +38,9 @@ export const POST = withAuth(async (req, supabase) => {
     throw new ValidationError("At least one prescription item is required");
   }
 
-  const { data: rx, error: rxError } = await supabase
+  const svc = createServiceClient();
+
+  const { data: rx, error: rxError } = await svc
     .from("prescriptions")
     .insert({
       patient_id: body.patient_id,
@@ -62,7 +65,7 @@ export const POST = withAuth(async (req, supabase) => {
     instructions: it.instructions || null,
   }));
 
-  const { data: createdItems, error: itemsError } = await supabase.from("prescription_items").insert(items).select();
+  const { data: createdItems, error: itemsError } = await svc.from("prescription_items").insert(items).select();
   if (itemsError) return err(itemsError.message, 500);
 
   const { data: full } = await supabase

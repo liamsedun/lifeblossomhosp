@@ -1,9 +1,11 @@
 import { NextRequest } from "next/server";
 import { withAuth, ok, err, parseBody } from "@/lib/api-utils";
+import { createServiceClient } from "@/lib/supabase/server";
 
 export const GET = withAuth(async (req, supabase, _uid, context) => {
+  const svc = createServiceClient();
   const { id } = await context.params;
-  const { data, error } = await supabase
+  const { data, error } = await svc
     .from("invoices")
     .select("*, patient:patients(*, user:users(id, first_name, last_name)), items:invoice_items(*), payments:payments(*)")
     .eq("id", id).single();
@@ -13,6 +15,7 @@ export const GET = withAuth(async (req, supabase, _uid, context) => {
 
 export const PUT = withAuth(async (req, supabase, _uid, context) => {
   const { id } = await context.params;
+  const svc = createServiceClient();
   const body = await parseBody<any>(req);
 
   const { data: existing } = await supabase.from("invoices").select("id").eq("id", id).single();
@@ -23,12 +26,12 @@ export const PUT = withAuth(async (req, supabase, _uid, context) => {
   for (const k of allowed) if (body[k] !== undefined) updates[k] = body[k];
 
   if (body.items && Array.isArray(body.items)) {
-    await supabase.from("invoice_items").delete().eq("invoice_id", id);
+    await svc.from("invoice_items").delete().eq("invoice_id", id);
     const newItems = body.items.map((it: any) => ({ ...it, invoice_id: id }));
-    await supabase.from("invoice_items").insert(newItems);
+    await svc.from("invoice_items").insert(newItems);
   }
 
-  const { data, error } = await supabase.from("invoices").update(updates).eq("id", id)
+  const { data, error } = await svc.from("invoices").update(updates).eq("id", id)
     .select("*, patient:patients(*, user:users(id, first_name, last_name)), items:invoice_items(*), payments:payments(*)")
     .single();
   if (error) return err(error.message, 500);
@@ -37,9 +40,10 @@ export const PUT = withAuth(async (req, supabase, _uid, context) => {
 
 export const DELETE = withAuth(async (req, supabase, _uid, context) => {
   const { id } = await context.params;
+  const svc = createServiceClient();
   const { data: existing } = await supabase.from("invoices").select("id").eq("id", id).single();
   if (!existing) return err("Not found", 404);
-  const { error } = await supabase.from("invoices").delete().eq("id", id);
+  const { error } = await svc.from("invoices").delete().eq("id", id);
   if (error) return err(error.message, 500);
   return ok(null);
 });

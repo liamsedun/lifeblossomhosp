@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { withAuth, ok, err, parseBody } from "@/lib/api-utils";
+import { createServiceClient } from "@/lib/supabase/server";
 
 export const GET = withAuth(async (req, supabase, _uid, context) => {
   const { id } = await context.params;
@@ -10,10 +11,11 @@ export const GET = withAuth(async (req, supabase, _uid, context) => {
 
 export const PUT = withAuth(async (req, supabase, _uid, context) => {
   const { id } = await context.params;
+  const svc = createServiceClient();
   const body = await parseBody<any>(req);
   const { data: existing } = await supabase.from("notifications").select("id").eq("id", id).single();
   if (!existing) return err("Not found", 404);
-  const { data, error } = await supabase.from("notifications").update({ is_read: body.is_read ?? true }).eq("id", id).select().single();
+  const { data, error } = await svc.from("notifications").update({ is_read: body.is_read ?? true }).eq("id", id).select().single();
   if (error) return err(error.message, 500);
   return ok(data);
 });

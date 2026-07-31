@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { withAuth, ok, err, parseBody } from "@/lib/api-utils";
+import { createServiceClient } from "@/lib/supabase/server";
 
 const ALLOWED_CATEGORIES = [
   "donation", "food_sales", "drink_sales", "drug_sales", "consumables", "other",
@@ -17,6 +18,7 @@ export const GET = withAuth(async (req, supabase, _uid, context) => {
 
 export const PUT = withAuth(async (req, supabase, _uid, context) => {
   const { id } = await context.params;
+  const svc = createServiceClient();
   const body = await parseBody<any>(req);
 
   const { data: existing } = await supabase.from("other_income").select("id, org_id").eq("id", id).single();
@@ -31,7 +33,7 @@ export const PUT = withAuth(async (req, supabase, _uid, context) => {
     return err(`Invalid category. Must be one of: ${ALLOWED_CATEGORIES.join(", ")}`);
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await svc
     .from("other_income").update(updates).eq("id", id)
     .select("*, created_by_user:users!other_income_created_by_fkey(id, first_name, last_name)")
     .single();
@@ -41,9 +43,10 @@ export const PUT = withAuth(async (req, supabase, _uid, context) => {
 
 export const DELETE = withAuth(async (req, supabase, _uid, context) => {
   const { id } = await context.params;
+  const svc = createServiceClient();
   const { data: existing } = await supabase.from("other_income").select("id").eq("id", id).single();
   if (!existing) return err("Not found", 404);
-  const { error } = await supabase.from("other_income").delete().eq("id", id);
+  const { error } = await svc.from("other_income").delete().eq("id", id);
   if (error) return err(error.message, 500);
   return ok(null);
 });

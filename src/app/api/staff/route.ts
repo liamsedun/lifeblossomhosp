@@ -5,7 +5,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 export const GET = withAuth(async (req, supabase, authUserId) => {
   const sp = new URL(req.url).searchParams;
   const department = sp.get("department");
-  const available = sp.get("is_available");
+  const is_available = sp.get("is_available");
   const { page, pageSize, from, to } = getPagination(sp);
 
   // If caller is a patient, return only public fields (name, specialty, department)
@@ -19,7 +19,7 @@ export const GET = withAuth(async (req, supabase, authUserId) => {
         { count: "exact" });
 
     if (department) query = query.eq("department", department);
-    if (available !== null) query = query.eq("is_available", available === "true");
+    if (is_available !== null) query = query.eq("is_available", is_available === "true");
 
     const { data, error, count } = await query.order("created_at", { ascending: false }).range(from, to);
     if (error) return err(error.message, 500);
@@ -32,7 +32,7 @@ export const GET = withAuth(async (req, supabase, authUserId) => {
       { count: "exact" });
 
   if (department) query = query.eq("department", department);
-  if (available !== null) query = query.eq("is_available", available === "true");
+  if (is_available !== null) query = query.eq("is_available", is_available === "true");
 
   const { data, error, count } = await query.order("created_at", { ascending: false }).range(from, to);
   if (error) return err(error.message, 500);
@@ -66,7 +66,7 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   if (!orgId) return err("User profile not found", 404);
 
   // Create user record
-  const { error: userError } = await supabase.from("users").insert({
+  const { error: userError } = await svc.from("users").insert({
     id: authData.user.id, org_id: orgId, email: body.email,
     role: body.role, first_name: body.first_name, last_name: body.last_name,
     phone: body.phone || null, password_hash: "",
@@ -77,7 +77,7 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   const { count } = await supabase.from("staff").select("id", { count: "exact", head: true });
   const staffNumber = `STF-${String((count || 0) + 1).padStart(4, "0")}`;
 
-  const { data, error } = await supabase.from("staff").insert({
+  const { data, error } = await svc.from("staff").insert({
     org_id: orgId, user_id: authData.user.id, staff_number: staffNumber,
     specialization: body.specialization || null, license_number: body.license_number || null,
     department: body.department || null, qualification: body.qualification || null,

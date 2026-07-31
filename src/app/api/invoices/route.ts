@@ -1,13 +1,15 @@
 import { NextRequest } from "next/server";
 import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError, resolvePatientId } from "@/lib/api-utils";
+import { createServiceClient } from "@/lib/supabase/server";
 
 export const GET = withAuth(async (req, supabase, authUserId) => {
+  const svc = createServiceClient();
   const sp = new URL(req.url).searchParams;
   const patientId = sp.get("patient_id") || await resolvePatientId(supabase, authUserId);
   const status = sp.get("status");
   const { page, pageSize, from, to } = getPagination(sp);
 
-  let query = supabase
+  let query = svc
     .from("invoices")
     .select("*, patient:patients(*, user:users(id, first_name, last_name)), items:invoice_items(*), payments:payments(*)",
       { count: "exact" });
@@ -35,11 +37,13 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
     throw new ValidationError("At least one invoice item is required");
   }
 
+  const svc = createServiceClient();
+
   // Generate invoice number
   const { count } = await supabase.from("invoices").select("id", { count: "exact", head: true });
   const invoiceNumber = `INV-${String((count || 0) + 1).padStart(4, "0")}`;
 
-  const { data: invoice, error: invError } = await supabase
+  const { data: invoice, error: invError } = await svc
     .from("invoices")
     .insert({
       patient_id: body.patient_id,
@@ -61,11 +65,11 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
 
   // Insert items
   const lineItems = body.items.map((it) => ({ ...it, invoice_id: invoice.id }));
-  const { data: items, error: itemsError } = await supabase.from("invoice_items").insert(lineItems).select();
+  const { data: items, error: itemsError } = await svc.from("invoice_items").insert(lineItems).select();
   if (itemsError) return err(itemsError.message, 500);
 
   // Fetch full invoice
-  const { data: full } = await supabase
+  const { data: full } = await svc
     .from("invoices")
     .select("*, patient:patients(*, user:users(id, first_name, last_name)), items:invoice_items(*), payments:payments(*)")
     .eq("id", invoice.id).single();

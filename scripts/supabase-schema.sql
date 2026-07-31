@@ -149,7 +149,7 @@ CREATE TABLE IF NOT EXISTS staff (
   qualification   TEXT,
   employment_type VARCHAR(50) DEFAULT 'full_time',
   base_salary     NUMERIC(12,2),
-  available       BOOLEAN DEFAULT true,
+  is_available    BOOLEAN DEFAULT true,
   available_from  TIME,
   available_until TIME,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -342,7 +342,48 @@ CREATE TABLE IF NOT EXISTS other_income (
 );
 
 -- ---------------------------------------------------------------------------
--- 2.15 AUDIT LOGS
+-- 2.15 DOCTOR'S CLINICAL VISIT NOTES (restricted to doctors/nurses)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS doctor_notes (
+  id                        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                    UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  patient_id                UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+  doctor_id                 UUID REFERENCES staff(id) ON DELETE SET NULL,
+  appointment_id            UUID REFERENCES appointments(id) ON DELETE SET NULL,
+  visit_date                DATE NOT NULL DEFAULT CURRENT_DATE,
+  vitals                    JSONB DEFAULT '{}'::jsonb,
+  tests_procedures          JSONB DEFAULT '{}'::jsonb,
+  clinical_findings         TEXT,
+  diagnosis                 JSONB DEFAULT '{}'::jsonb,
+  medications               JSONB DEFAULT '[]'::jsonb,
+  treatment_recommendations TEXT,
+  next_visit_date           DATE,
+  next_visit_reason         TEXT,
+  is_confidential           BOOLEAN DEFAULT true,
+  created_by                UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at                TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ---------------------------------------------------------------------------
+-- 2.16 LANDING PAGE DOCTORS
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS landing_doctors (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id        UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name          VARCHAR(255) NOT NULL,
+  specialty     VARCHAR(255) NOT NULL,
+  available     BOOLEAN DEFAULT true,
+  availability  TEXT DEFAULT '',
+  image_url     TEXT,
+  sort_order    INTEGER DEFAULT 0,
+  is_active     BOOLEAN DEFAULT true,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ---------------------------------------------------------------------------
+-- 2.17 AUDIT LOGS
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS audit_logs (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -368,6 +409,28 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   device_name       VARCHAR(255),
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 2.20 Internal Mail
+CREATE TABLE IF NOT EXISTS internal_messages (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id          UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  sender_id       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  subject         VARCHAR(500) NOT NULL,
+  body            TEXT NOT NULL,
+  is_broadcast    BOOLEAN DEFAULT false,
+  broadcast_scope VARCHAR(10) DEFAULT 'staff' CHECK (broadcast_scope IN ('staff', 'all')),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS internal_message_recipients (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  message_id    UUID NOT NULL REFERENCES internal_messages(id) ON DELETE CASCADE,
+  recipient_id  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  is_read       BOOLEAN DEFAULT false,
+  read_at       TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT uq_msg_recipient UNIQUE (message_id, recipient_id)
 );
 
 -- ###########################################################################
@@ -408,6 +471,20 @@ CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses (org_id, expense_date);
 CREATE INDEX IF NOT EXISTS idx_other_income_org ON other_income (org_id);
 CREATE INDEX IF NOT EXISTS idx_other_income_category ON other_income (org_id, category);
 CREATE INDEX IF NOT EXISTS idx_other_income_date ON other_income (org_id, income_date);
+CREATE INDEX IF NOT EXISTS idx_doctor_notes_org ON doctor_notes (org_id);
+CREATE INDEX IF NOT EXISTS idx_doctor_notes_patient ON doctor_notes (patient_id);
+CREATE INDEX IF NOT EXISTS idx_doctor_notes_doctor ON doctor_notes (doctor_id);
+CREATE INDEX IF NOT EXISTS idx_doctor_notes_visit ON doctor_notes (org_id, visit_date DESC);
+CREATE INDEX IF NOT EXISTS idx_doctor_notes_created ON doctor_notes (org_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_landing_doctors_org ON landing_doctors (org_id);
+CREATE INDEX IF NOT EXISTS idx_landing_doctors_active ON landing_doctors (org_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_landing_doctors_sort ON landing_doctors (org_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_internal_messages_org ON internal_messages (org_id);
+CREATE INDEX IF NOT EXISTS idx_internal_messages_sender ON internal_messages (sender_id);
+CREATE INDEX IF NOT EXISTS idx_internal_messages_created ON internal_messages (org_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_msg_recipients_message ON internal_message_recipients (message_id);
+CREATE INDEX IF NOT EXISTS idx_msg_recipients_recipient ON internal_message_recipients (recipient_id);
+CREATE INDEX IF NOT EXISTS idx_msg_recipients_unread ON internal_message_recipients (recipient_id, is_read) WHERE is_read = false;
 CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions (user_id);
 
 -- ###########################################################################
@@ -482,6 +559,18 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
+DO $$ BEGIN
+  CREATE TRIGGER trg_doctor_notes_updated_at BEFORE UPDATE ON doctor_notes
+    FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TRIGGER trg_landing_doctors_updated_at BEFORE UPDATE ON landing_doctors
+    FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
 -- ###########################################################################
 -- 5. ROW-LEVEL SECURITY
 -- ###########################################################################
@@ -501,7 +590,11 @@ ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE doctor_notes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE landing_doctors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE other_income ENABLE ROW LEVEL SECURITY;
+ALTER TABLE internal_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE internal_message_recipients ENABLE ROW LEVEL SECURITY;
 
 -- Helper function: returns the current org_id from a session variable
 CREATE OR REPLACE FUNCTION public.current_org_id()
@@ -527,7 +620,11 @@ DO $$ BEGIN DROP POLICY IF EXISTS org_isolation ON payments; END $$;
 DO $$ BEGIN DROP POLICY IF EXISTS org_isolation ON notifications; END $$;
 DO $$ BEGIN DROP POLICY IF EXISTS org_isolation ON audit_logs; END $$;
 DO $$ BEGIN DROP POLICY IF EXISTS org_isolation ON expenses; END $$;
+DO $$ BEGIN DROP POLICY IF EXISTS org_isolation ON landing_doctors; END $$;
+DO $$ BEGIN DROP POLICY IF EXISTS org_isolation ON doctor_notes; END $$;
 DO $$ BEGIN DROP POLICY IF EXISTS org_isolation ON other_income; END $$;
+DO $$ BEGIN DROP POLICY IF EXISTS org_isolation ON internal_messages; END $$;
+DO $$ BEGIN DROP POLICY IF EXISTS org_isolation ON internal_message_recipients; END $$;
 
 -- Organisation-isolation policies
 CREATE POLICY org_isolation ON organizations
@@ -572,8 +669,20 @@ CREATE POLICY org_isolation ON audit_logs
 CREATE POLICY org_isolation ON expenses
   USING (org_id = public.current_org_id());
 
+CREATE POLICY org_isolation ON doctor_notes
+  USING (org_id = public.current_org_id());
+
+CREATE POLICY org_isolation ON landing_doctors
+  USING (org_id = public.current_org_id());
+
 CREATE POLICY org_isolation ON other_income
   USING (org_id = public.current_org_id());
+
+CREATE POLICY org_isolation ON internal_messages
+  USING (org_id = public.current_org_id());
+
+CREATE POLICY org_isolation ON internal_message_recipients
+  USING (true);
 
 -- ###########################################################################
 -- 6. SEED DATA

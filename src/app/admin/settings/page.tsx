@@ -376,7 +376,7 @@ function ResetPasswordDialog({ userId, userName }: { userId: string; userName: s
           )}
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline">
+              <Button type="button" variant="outline" className="border-white/[0.08] text-white/70 hover:bg-white/[0.06]">
                 Cancel
               </Button>
             </DialogClose>
@@ -393,15 +393,39 @@ function ResetPasswordDialog({ userId, userName }: { userId: string; userName: s
 function AddDoctorDialog({ onSaved }: { onSaved: () => void }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
   const [form, setForm] = useState({
     name: "",
     specialty: "",
     available: "true",
     availability: "",
+    image_url: "",
   });
+
+  async function handleImageUpload(file: File) {
+    setUploading(true);
+    setError("");
+    try {
+      const fd = new FormData();
+      fd.append("image", file);
+      const res = await fetch("/api/upload/doctor-image", { method: "POST", body: fd });
+      const json = await res.json();
+      if (json.success) {
+        setForm((f) => ({ ...f, image_url: json.data.image_url }));
+      } else {
+        setError(json.error || "Upload failed");
+      }
+    } catch {
+      setError("Image upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setError("");
     if (!form.name.trim() || !form.specialty.trim()) return;
     setSaving(true);
     try {
@@ -413,14 +437,19 @@ function AddDoctorDialog({ onSaved }: { onSaved: () => void }) {
           specialty: form.specialty.trim(),
           available: form.available === "true",
           availability: form.availability.trim(),
+          image_url: form.image_url || null,
         }),
       });
       const json = await res.json();
       if (json.success) {
         setOpen(false);
-        setForm({ name: "", specialty: "", available: "true", availability: "" });
+        setForm({ name: "", specialty: "", available: "true", availability: "", image_url: "" });
         onSaved();
+      } else {
+        setError(json.error || "Failed to save doctor");
       }
+    } catch {
+      setError("Network error");
     } finally {
       setSaving(false);
     }
@@ -439,6 +468,35 @@ function AddDoctorDialog({ onSaved }: { onSaved: () => void }) {
           <DialogTitle>Add Doctor</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">
+              Photo
+            </label>
+            <div className="flex items-center gap-3">
+              {form.image_url ? (
+                <img src={form.image_url} alt="Preview" className="size-14 rounded-full object-cover border border-border" />
+              ) : (
+                <div className="size-14 rounded-full bg-muted flex items-center justify-center text-xs text-text-secondary border border-border">
+                  No photo
+                </div>
+              )}
+              <label className="cursor-pointer">
+                <span className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:bg-muted transition-colors">
+                  {uploading ? "Uploading..." : "Choose File"}
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleImageUpload(file);
+                  }}
+                />
+              </label>
+            </div>
+          </div>
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">
               Name
@@ -490,13 +548,18 @@ function AddDoctorDialog({ onSaved }: { onSaved: () => void }) {
               <option value="false">Limited Availability</option>
             </select>
           </div>
+          {error && (
+            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+              {error}
+            </div>
+          )}
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline">
+              <Button type="button" variant="outline" className="border-white/[0.08] text-white/70 hover:bg-white/[0.06]">
                 Cancel
               </Button>
             </DialogClose>
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" disabled={saving || uploading}>
               {saving ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>
@@ -515,11 +578,14 @@ function EditDoctorDialog({
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
   const [form, setForm] = useState({
     name: doctor.name,
     specialty: doctor.specialty,
     available: doctor.available ? "true" : "false",
     availability: doctor.availability,
+    image_url: doctor.image_url || "",
   });
 
   useEffect(() => {
@@ -528,11 +594,33 @@ function EditDoctorDialog({
       specialty: doctor.specialty,
       available: doctor.available ? "true" : "false",
       availability: doctor.availability,
+      image_url: doctor.image_url || "",
     });
   }, [doctor]);
 
+  async function handleImageUpload(file: File) {
+    setUploading(true);
+    setError("");
+    try {
+      const fd = new FormData();
+      fd.append("image", file);
+      const res = await fetch("/api/upload/doctor-image", { method: "POST", body: fd });
+      const json = await res.json();
+      if (json.success) {
+        setForm((f) => ({ ...f, image_url: json.data.image_url }));
+      } else {
+        setError(json.error || "Upload failed");
+      }
+    } catch {
+      setError("Image upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setError("");
     if (!form.name.trim() || !form.specialty.trim()) return;
     setSaving(true);
     try {
@@ -544,13 +632,18 @@ function EditDoctorDialog({
           specialty: form.specialty.trim(),
           available: form.available === "true",
           availability: form.availability.trim(),
+          image_url: form.image_url || null,
         }),
       });
       const json = await res.json();
       if (json.success) {
         setOpen(false);
         onSaved();
+      } else {
+        setError(json.error || "Failed to save doctor");
       }
+    } catch {
+      setError("Network error");
     } finally {
       setSaving(false);
     }
@@ -568,6 +661,35 @@ function EditDoctorDialog({
           <DialogTitle>Edit Doctor</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">
+              Photo
+            </label>
+            <div className="flex items-center gap-3">
+              {form.image_url ? (
+                <img src={form.image_url} alt="Preview" className="size-14 rounded-full object-cover border border-border" />
+              ) : (
+                <div className="size-14 rounded-full bg-muted flex items-center justify-center text-xs text-text-secondary border border-border">
+                  No photo
+                </div>
+              )}
+              <label className="cursor-pointer">
+                <span className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:bg-muted transition-colors">
+                  {uploading ? "Uploading..." : "Change Photo"}
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleImageUpload(file);
+                  }}
+                />
+              </label>
+            </div>
+          </div>
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">
               Name
@@ -616,13 +738,18 @@ function EditDoctorDialog({
               <option value="false">Limited Availability</option>
             </select>
           </div>
+          {error && (
+            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+              {error}
+            </div>
+          )}
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline">
+              <Button type="button" variant="outline" className="border-white/[0.08] text-white/70 hover:bg-white/[0.06]">
                 Cancel
               </Button>
             </DialogClose>
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" disabled={saving || uploading}>
               {saving ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>
@@ -676,7 +803,7 @@ function DeleteDoctorButton({
         </p>
         <DialogFooter>
           <DialogClose asChild>
-            <Button type="button" variant="outline">
+            <Button type="button" variant="outline" className="border-white/[0.08] text-white/70 hover:bg-white/[0.06]">
               Cancel
             </Button>
           </DialogClose>

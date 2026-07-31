@@ -220,6 +220,86 @@ export interface Notification {
   read_at: string | null;
 }
 
+// --- Internal Mail ---
+export interface InternalMessage {
+  id: string;
+  org_id: string;
+  sender_id: string;
+  subject: string;
+  body: string;
+  is_broadcast: boolean;
+  broadcast_scope: "staff" | "all" | null;
+  created_at: string;
+  sender?: User;
+  recipients?: InternalMessageRecipient[];
+}
+
+export interface InternalMessageRecipient {
+  id: string;
+  message_id: string;
+  recipient_id: string;
+  is_read: boolean;
+  read_at: string | null;
+  created_at: string;
+  recipient?: User;
+}
+
+// --- Doctor's Clinical Visit Notes ---
+export interface DoctorNoteVitals {
+  bp?: string;
+  weight?: string;
+  height?: string;
+  temperature?: string;
+  cholesterol?: string;
+  heart_rate?: string;
+  respiratory_rate?: string;
+  allergies?: string;
+}
+
+export interface DoctorNoteTests {
+  ecg?: string;
+  xray?: string;
+  blood_test?: string;
+  urine_test?: string;
+  saliva_test?: string;
+  other_tests?: string;
+}
+
+export interface DoctorNoteDiagnosis {
+  primary?: string;
+  secondary?: string[];
+  suspected?: string[];
+}
+
+export interface DoctorNoteMedication {
+  drug_name: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+}
+
+export interface DoctorNote {
+  id: string;
+  org_id: string;
+  patient_id: string;
+  doctor_id: string | null;
+  appointment_id: string | null;
+  visit_date: string;
+  vitals: DoctorNoteVitals;
+  tests_procedures: DoctorNoteTests;
+  clinical_findings: string | null;
+  diagnosis: DoctorNoteDiagnosis;
+  medications: DoctorNoteMedication[];
+  treatment_recommendations: string | null;
+  next_visit_date: string | null;
+  next_visit_reason: string | null;
+  is_confidential: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  doctor?: Staff;
+}
+
 // --- Audit Log ---
 export interface AuditLog {
   id: string;

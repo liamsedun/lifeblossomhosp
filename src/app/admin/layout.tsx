@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -20,8 +20,11 @@ import {
   Bell,
   ChevronDown,
   LogOut,
+  CheckCheck,
+  Mail,
+  MailOpen,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatDate, formatTime } from "@/lib/utils";
 import Logo from "@/components/ui/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,18 +39,110 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/auth-context";
 
+interface NotificationItem {
+  id: string;
+  title: string;
+  message: string | null;
+  type: string;
+  is_read: boolean;
+  created_at: string;
+}
+
 const navItems = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { label: "Patients", href: "/admin/patients", icon: Users },
   { label: "Appointments", href: "/admin/appointments", icon: CalendarDays },
   { label: "Billing", href: "/admin/billing", icon: Wallet },
   { label: "Expenses", href: "/admin/expenses", icon: Receipt },
+  { label: "Internal Mail", href: "/admin/internal-mail", icon: Mail },
   { label: "Other Income", href: "/admin/other-income", icon: Gift },
   { label: "Staff", href: "/admin/staff", icon: Stethoscope },
   { label: "Reports", href: "/admin/reports", icon: BarChart3 },
   { label: "Settings", href: "/admin/settings", icon: Settings },
   { label: "Profile", href: "/admin/profile", icon: UserCircle },
 ];
+
+function NotificationDropdown() {
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/notifications?page_size=10")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success) {
+          setNotifications(json.data || []);
+          setUnreadCount((json.data || []).filter((n: NotificationItem) => !n.is_read).length);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const markAllRead = async () => {
+    try {
+      await fetch("/api/notifications", { method: "PUT" });
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      setUnreadCount(0);
+    } catch {}
+  };
+
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon"
+          className="relative text-white/50 hover:text-white hover:bg-white/[0.06] transition-all">
+          <Bell className="size-[18px]" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-gradient-to-br from-[#e0a84a] to-amber-500 text-[10px] font-bold text-[#0a0f1a]">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-80 border-white/[0.06] bg-[#0d1322]/95 backdrop-blur-xl text-white/80 max-h-[400px] overflow-y-auto">
+        <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.06]">
+          <span className="text-xs font-medium text-white/60">Notifications</span>
+          {unreadCount > 0 && (
+            <button onClick={markAllRead}
+              className="text-[10px] text-[#e0a84a] hover:text-[#e0a84a]/80 flex items-center gap-1">
+              <CheckCheck className="size-3" /> Mark all read
+            </button>
+          )}
+        </div>
+        {notifications.length === 0 ? (
+          <div className="px-4 py-8 text-center text-xs text-white/40">No notifications yet</div>
+        ) : (
+          notifications.map((n) => (
+            <DropdownMenuItem key={n.id} className={cn(
+              "flex flex-col items-start gap-0.5 px-3 py-2.5 border-b border-white/[0.04] last:border-0 cursor-default",
+              !n.is_read ? "bg-white/[0.03]" : ""
+            )}>
+              <div className="flex items-start gap-2 w-full">
+                {!n.is_read ? (
+                  <Mail className="size-3.5 mt-0.5 shrink-0 text-[#e0a84a]" />
+                ) : (
+                  <MailOpen className="size-3.5 mt-0.5 shrink-0 text-white/30" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className={cn("text-xs leading-tight", !n.is_read ? "text-white font-medium" : "text-white/60")}>
+                    {n.title}
+                  </p>
+                  {n.message && (
+                    <p className="text-[11px] text-white/40 mt-0.5 line-clamp-2">{n.message}</p>
+                  )}
+                  <p className="text-[10px] text-white/30 mt-1">
+                    {formatDate(n.created_at)} at {formatTime(n.created_at)}
+                  </p>
+                </div>
+              </div>
+            </DropdownMenuItem>
+          ))
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 export default function AdminLayout({
   children,
@@ -157,16 +252,7 @@ export default function AdminLayout({
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="relative text-white/50 hover:text-white hover:bg-white/[0.06] transition-all"
-            >
-              <Bell className="size-[18px]" />
-              <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-gradient-to-br from-[#e0a84a] to-amber-500 text-[10px] font-bold text-[#0a0f1a]">
-                3
-              </span>
-            </Button>
+            <NotificationDropdown />
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

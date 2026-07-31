@@ -1,13 +1,15 @@
 "use client";
 
-import { useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   DollarSign, Users, Calendar, AlertTriangle,
-  TrendingUp, TrendingDown, Plus, Stethoscope, FileText, ArrowUpRight, Loader2,
+  TrendingUp, TrendingDown, Plus, Stethoscope, FileText, ArrowUpRight, Loader2, PieChart,
+  Receipt, Wallet,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart as RePieChart, Pie, Cell, Legend,
 } from "recharts";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,6 +43,14 @@ function GradientCard({ children, gradient, className }: { children: React.React
   );
 }
 
+interface OtherIncomeRecord {
+  id: string;
+  description: string;
+  category: string;
+  amount: number;
+  income_date: string;
+}
+
 export default function AdminDashboard() {
   const router = useRouter();
   const { data: appointmentsData, loading: loadingAppts } = useAppointments();
@@ -48,54 +58,109 @@ export default function AdminDashboard() {
   const { data: staffData, loading: loadingStaff } = useStaff();
   const { data: invoicesData, loading: loadingInvoices } = useInvoices();
 
-  const loading = loadingAppts || loadingPatients || loadingStaff || loadingInvoices;
+  const [otherIncomeData, setOtherIncomeData] = useState<OtherIncomeRecord[]>([]);
+  const [loadingOtherIncome, setLoadingOtherIncome] = useState(true);
 
-  const { totalRevenue, appointmentsToday, outstandingPayments, patientCount, staffCount } = useMemo(() => {
-    const totalRev = (invoicesData || [])
+  const now = new Date();
+  const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
+  const [expensesByMonth, setExpensesByMonth] = useState<number>(0);
+  const [loadingExpenses, setLoadingExpenses] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/other-income?page_size=500")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success) setOtherIncomeData(json.data || []);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingOtherIncome(false));
+  }, []);
+
+  useEffect(() => {
+    if (!selectedMonth) return;
+    setLoadingExpenses(true);
+    const [y, m] = selectedMonth.split("-").map(Number);
+    const from = `${y}-${String(m).padStart(2, "0")}-01`;
+    const to = new Date(y, m, 0).toISOString().split("T")[0];
+    fetch(`/api/expenses?from=${from}&to=${to}&page_size=500`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success) {
+          const total = (json.data || []).reduce((s: number, e: any) => s + e.amount, 0);
+          setExpensesByMonth(total);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingExpenses(false));
+  }, [selectedMonth]);
+
+  const loading = loadingAppts || loadingPatients || loadingStaff || loadingInvoices || loadingOtherIncome;
+
+  const { totalRevenue, medicalRevenue, otherRevenue, appointmentsToday, outstandingPayments, patientCount, staffCount } = useMemo(() => {
+    const medRev = (invoicesData || [])
       .filter((i) => i.status === "paid" || i.status === "partially_paid")
       .reduce((sum, i) => sum + i.total_amount, 0);
+    const othRev = otherIncomeData.reduce((sum, r) => sum + r.amount, 0);
     const today = new Date().toISOString().split("T")[0];
     const todayApts = (appointmentsData || []).filter((a) => a.appointment_date?.startsWith(today)).length;
     const outstanding = (invoicesData || [])
       .filter((i) => i.status === "pending" || i.status === "partially_paid")
       .reduce((sum, i) => sum + i.total_amount, 0);
     return {
-      totalRevenue: totalRev,
+      totalRevenue: medRev + othRev,
+      medicalRevenue: medRev,
+      otherRevenue: othRev,
       appointmentsToday: todayApts,
       outstandingPayments: outstanding,
       patientCount: patientsData?.length ?? 0,
       staffCount: staffData?.length ?? 0,
     };
-  }, [invoicesData, appointmentsData, patientsData, staffData]);
+  }, [invoicesData, otherIncomeData, appointmentsData, patientsData, staffData]);
+
+  const revenueBreakdown = useMemo(() => [
+    { name: "Medical Services", value: medicalRevenue, color: "#e0a84a" },
+    { name: "Other Income", value: otherRevenue, color: "#10b981" },
+  ], [medicalRevenue, otherRevenue]);
 
   const monthlyRevenue = useMemo(() => {
-    const paid = (invoicesData || []).filter((i) => i.status === "paid" || i.status === "partially_paid");
+    const medPaid = (invoicesData || []).filter((i) => i.status === "paid" || i.status === "partially_paid");
     const now = new Date();
-    const months: { month: string; amount: number }[] = [];
+    const months: { month: string; medical: number; other: number }[] = [];
     for (let i = 11; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const label = d.toLocaleString("default", { month: "short" });
-      months.push({ month: label, amount: 0 });
+      months.push({ month: label, medical: 0, other: 0 });
     }
-    paid.forEach((inv) => {
+    medPaid.forEach((inv) => {
       const d = new Date(inv.issue_date);
       const idx = (d.getFullYear() - now.getFullYear()) * 12 + (d.getMonth() - now.getMonth()) + 11;
-      if (idx >= 0 && idx < 12) months[idx].amount += inv.total_amount;
+      if (idx >= 0 && idx < 12) months[idx].medical += inv.total_amount;
+    });
+    otherIncomeData.forEach((r) => {
+      const d = new Date(r.income_date);
+      const idx = (d.getFullYear() - now.getFullYear()) * 12 + (d.getMonth() - now.getMonth()) + 11;
+      if (idx >= 0 && idx < 12) months[idx].other += r.amount;
     });
     return months;
-  }, [invoicesData]);
+  }, [invoicesData, otherIncomeData]);
 
   const weeklyRevenue = useMemo(() => {
-    const paid = (invoicesData || []).filter((i) => i.status === "paid" || i.status === "partially_paid");
-    const buckets: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+    const medPaid = (invoicesData || []).filter((i) => i.status === "paid" || i.status === "partially_paid");
+    const buckets: Record<string, { medical: number; other: number }> = {};
+    DAYS.forEach((d) => { buckets[d] = { medical: 0, other: 0 }; });
     const now = new Date();
     const weekAgo = new Date(now.getTime() - 7 * 86400000);
-    paid.filter((i) => new Date(i.issue_date) >= weekAgo).forEach((inv) => {
-      const day = new Date(inv.issue_date).getDay();
-      buckets[day] += inv.total_amount;
+    medPaid.filter((i) => new Date(i.issue_date) >= weekAgo).forEach((inv) => {
+      const day = DAYS[new Date(inv.issue_date).getDay()];
+      buckets[day].medical += inv.total_amount;
     });
-    return DAYS.map((day, i) => ({ day, amount: buckets[i] }));
-  }, [invoicesData]);
+    otherIncomeData.filter((r) => new Date(r.income_date) >= weekAgo).forEach((r) => {
+      const day = DAYS[new Date(r.income_date).getDay()];
+      buckets[day].other += r.amount;
+    });
+    return DAYS.map((day) => ({ day, medical: buckets[day].medical, other: buckets[day].other }));
+  }, [invoicesData, otherIncomeData]);
 
   const deptData = useMemo(() => {
     if (!appointmentsData) return [];
@@ -110,8 +175,8 @@ export default function AdminDashboard() {
       .map(([dept, count]) => ({ dept, count }));
   }, [appointmentsData]);
 
-  const monthlyTotal = monthlyRevenue.reduce((s, m) => s + m.amount, 0);
-  const prevMonthTotal = monthlyRevenue.length >= 2 ? monthlyRevenue[monthlyRevenue.length - 2].amount : 0;
+  const monthlyTotal = monthlyRevenue.reduce((s, m) => s + m.medical + m.other, 0);
+  const prevMonthTotal = monthlyRevenue.length >= 2 ? monthlyRevenue[monthlyRevenue.length - 2].medical + monthlyRevenue[monthlyRevenue.length - 2].other : 0;
   const revenueTrendPct = prevMonthTotal > 0 ? ((monthlyTotal - prevMonthTotal) / prevMonthTotal * 100).toFixed(1) : "0";
   const revenueUp = monthlyTotal >= prevMonthTotal;
 
@@ -123,6 +188,29 @@ export default function AdminDashboard() {
       lastVisit: p.created_at ? formatDate(p.created_at) : "N/A",
     }));
   }, [patientsData]);
+
+  const selectedMonthRevenue = useMemo(() => {
+    if (!selectedMonth) return 0;
+    const [y, m] = selectedMonth.split("-").map(Number);
+    const med = (invoicesData || [])
+      .filter((i) => {
+        if (i.status !== "paid" && i.status !== "partially_paid") return false;
+        const d = new Date(i.issue_date);
+        return d.getFullYear() === y && d.getMonth() === m - 1;
+      })
+      .reduce((sum, i) => sum + i.total_amount, 0);
+    const oth = otherIncomeData
+      .filter((r) => {
+        const d = new Date(r.income_date);
+        return d.getFullYear() === y && d.getMonth() === m - 1;
+      })
+      .reduce((sum, r) => sum + r.amount, 0);
+    return med + oth;
+  }, [selectedMonth, invoicesData, otherIncomeData]);
+
+  const profit = selectedMonthRevenue - expensesByMonth;
+  const profitMargin = selectedMonthRevenue > 0 ? (profit / selectedMonthRevenue) * 100 : 0;
+  const isProfitable = profit >= 0;
 
   const kpis = [
     {
@@ -188,25 +276,130 @@ export default function AdminDashboard() {
         })}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="border-white/[0.06] bg-white/[0.03] backdrop-blur-xl">
+      {/* Profitability Card */}
+      <GradientCard gradient={isProfitable
+        ? "bg-gradient-to-br from-emerald-500 via-emerald-400 to-teal-300"
+        : "bg-gradient-to-br from-red-500 via-rose-400 to-pink-300"}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+          <div className="flex items-start gap-4">
+            <div className={cn(
+              "flex size-12 items-center justify-center rounded-xl border backdrop-blur-sm",
+              isProfitable ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-red-500/10 border-red-500/20 text-red-400"
+            )}>
+              {isProfitable ? <TrendingUp className="size-6" /> : <TrendingDown className="size-6" />}
+            </div>
+            <div>
+              <div className="flex items-center gap-3">
+                <p className="text-sm text-white/50">Net Profit / Loss</p>
+                <input type="month" value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="h-7 text-xs rounded-lg bg-white/[0.06] border border-white/[0.08] text-white/70 px-2" />
+              </div>
+              <p className={cn(
+                "text-3xl font-bold mt-1",
+                isProfitable ? "text-emerald-400" : "text-red-400"
+              )}>
+                {loadingExpenses ? "—" : formatCurrency(profit)}
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-6 text-sm">
+            <div className="text-right">
+              <p className="text-xs text-white/40">Revenue</p>
+              <p className="font-semibold text-white">{formatCurrency(selectedMonthRevenue)}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-white/40">Expenses</p>
+              <p className="font-semibold text-red-400">{formatCurrency(expensesByMonth)}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-white/40">Margin</p>
+              <p className={cn("font-semibold", isProfitable ? "text-emerald-400" : "text-red-400")}>
+                {loadingExpenses ? "—" : `${profitMargin.toFixed(1)}%`}
+              </p>
+            </div>
+          </div>
+        </div>
+      </GradientCard>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2 border-white/[0.06] bg-white/[0.03] backdrop-blur-xl">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base text-white">Weekly Revenue</CardTitle>
+            <CardTitle className="text-base text-white">Weekly Revenue Breakdown</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-64">
-              {weeklyRevenue.every((d) => d.amount === 0) ? (
+              {weeklyRevenue.every((d) => d.medical === 0 && d.other === 0) ? (
                 <div className="flex items-center justify-center h-full text-sm text-white/30">No revenue data this week</div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={weeklyRevenue}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <BarChart data={weeklyRevenue} barGap={0} barCategoryGap="10%">
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
                     <XAxis dataKey="day" tick={{ fontSize: 12, fill: "rgba(255,255,255,0.4)" }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fontSize: 12, fill: "rgba(255,255,255,0.4)" }} axisLine={false} tickLine={false}
                       tickFormatter={(v) => `₦${(v / 1000).toFixed(0)}k`} />
                     <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(13, 19, 34, 0.95)", backdropFilter: "blur(12px)", boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}
-                      labelStyle={{ color: "rgba(255,255,255,0.5)" }} formatter={(v) => [formatCurrency(Number(v)), "Revenue"]} />
-                    <Line type="monotone" dataKey="amount" stroke="#e0a84a" strokeWidth={2} dot={{ fill: "#e0a84a", r: 4, strokeWidth: 0 }} activeDot={{ r: 6, fill: "#e0a84a" }} />
+                      labelStyle={{ color: "rgba(255,255,255,0.5)" }} />
+                    <Bar dataKey="medical" name="Medical Services" fill="#e0a84a" radius={[4, 4, 0, 0]} stackId="a" />
+                    <Bar dataKey="other" name="Other Income" fill="#10b981" radius={[4, 4, 0, 0]} stackId="a" />
+                    <Legend wrapperStyle={{ fontSize: "12px", color: "rgba(255,255,255,0.6)" }} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-white/[0.06] bg-white/[0.03] backdrop-blur-xl">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base text-white">Revenue Split</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              {revenueBreakdown.every((r) => r.value === 0) ? (
+                <div className="flex items-center justify-center h-full text-sm text-white/30">No revenue data yet</div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <RePieChart>
+                    <Pie data={revenueBreakdown} cx="50%" cy="50%" innerRadius={55} outerRadius={85}
+                      paddingAngle={4} dataKey="value" stroke="none">
+                      {revenueBreakdown.map((entry, i) => (
+                        <Cell key={i} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(13, 19, 34, 0.95)", backdropFilter: "blur(12px)" }}
+                      formatter={(v) => [formatCurrency(Number(v)), ""]} />
+                    <Legend wrapperStyle={{ fontSize: "11px", color: "rgba(255,255,255,0.6)" }}
+                      formatter={(value) => <span style={{ color: "rgba(255,255,255,0.7)" }}>{value}</span>} />
+                  </RePieChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="border-white/[0.06] bg-white/[0.03] backdrop-blur-xl">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base text-white">Monthly Revenue Trend</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              {monthlyRevenue.every((m) => m.medical === 0 && m.other === 0) ? (
+                <div className="flex items-center justify-center h-full text-sm text-white/30">No revenue data yet</div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={monthlyRevenue}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                    <XAxis dataKey="month" tick={{ fontSize: 12, fill: "rgba(255,255,255,0.4)" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 12, fill: "rgba(255,255,255,0.4)" }} axisLine={false} tickLine={false}
+                      tickFormatter={(v) => `₦${(v / 1000).toFixed(0)}k`} />
+                    <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(13, 19, 34, 0.95)", backdropFilter: "blur(12px)", boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}
+                      labelStyle={{ color: "rgba(255,255,255,0.5)" }} />
+                    <Line type="monotone" dataKey="medical" name="Medical Services" stroke="#e0a84a" strokeWidth={2} dot={{ fill: "#e0a84a", r: 3 }} />
+                    <Line type="monotone" dataKey="other" name="Other Income" stroke="#10b981" strokeWidth={2} dot={{ fill: "#10b981", r: 3 }} />
+                    <Legend wrapperStyle={{ fontSize: "12px", color: "rgba(255,255,255,0.6)" }} />
                   </LineChart>
                 </ResponsiveContainer>
               )}

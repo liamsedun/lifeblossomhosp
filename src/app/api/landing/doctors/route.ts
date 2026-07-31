@@ -38,7 +38,8 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   if (!name) return err("Name is required", 400);
   if (!body.specialty?.trim()) return err("Specialty is required", 400);
 
-  const orgResult = await supabase
+  const svc = createServiceClient();
+  const orgResult = await svc
     .from("users")
     .select("org_id")
     .eq("id", authUserId)
@@ -46,7 +47,7 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
 
   const orgId = orgResult.data?.org_id || DEFAULT_ORG_ID;
 
-  const { data, error } = await supabase
+  const { data, error } = await svc
     .from("landing_doctors")
     .insert({
       org_id: orgId,

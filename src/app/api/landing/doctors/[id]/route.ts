@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { withAuth, ok, err, parseBody } from "@/lib/api-utils";
+import { createServiceClient } from "@/lib/supabase/server";
 
 export const PUT = withAuth(async (req, supabase, authUserId, context) => {
   const { id } = await context.params;
@@ -25,7 +26,8 @@ export const PUT = withAuth(async (req, supabase, authUserId, context) => {
 
   if (Object.keys(updates).length === 0) return err("No fields to update", 400);
 
-  const { data, error } = await supabase
+  const svc = createServiceClient();
+  const { data, error } = await svc
     .from("landing_doctors")
     .update(updates)
     .eq("id", id)
@@ -40,7 +42,8 @@ export const PUT = withAuth(async (req, supabase, authUserId, context) => {
 export const DELETE = withAuth(async (req, supabase, authUserId, context) => {
   const { id } = await context.params;
 
-  const { error, count } = await supabase
+  const svc = createServiceClient();
+  const { error, count } = await svc
     .from("landing_doctors")
     .delete({ count: "exact" })
     .eq("id", id);

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { withAuth, ok, err, parseBody } from "@/lib/api-utils";
+import { createServiceClient } from "@/lib/supabase/server";
 
 export const GET = withAuth(async (req, supabase, _uid, context) => {
   const { id } = await context.params;
@@ -13,6 +14,7 @@ export const GET = withAuth(async (req, supabase, _uid, context) => {
 
 export const PUT = withAuth(async (req, supabase, _uid, context) => {
   const { id } = await context.params;
+  const svc = createServiceClient();
   const body = await parseBody<any>(req);
 
   const { data: existing } = await supabase.from("appointments")
@@ -23,7 +25,7 @@ export const PUT = withAuth(async (req, supabase, _uid, context) => {
   const updates: Record<string, any> = {};
   for (const k of allowed) if (body[k] !== undefined && body[k] !== "") updates[k] = body[k];
 
-  const { data, error } = await supabase.from("appointments").update(updates).eq("id", id)
+  const { data, error } = await svc.from("appointments").update(updates).eq("id", id)
     .select("*, patient:patients(*, user:users(id, first_name, last_name)), doctor:staff!doctor_id(*, user:users(id, first_name, last_name))")
     .single();
   if (error) return err(error.message, 500);
@@ -41,7 +43,7 @@ export const PUT = withAuth(async (req, supabase, _uid, context) => {
       const n = notifMap[body.status];
       if (n) {
         const user = Array.isArray(patient.user) ? patient.user[0] : patient.user;
-        await supabase.from("notifications").insert({
+        await svc.from("notifications").insert({
           user_id: patient.user_id, type: n.type, title: n.title,
           message: n.message, link: "/patient/appointments", is_read: false,
           sent_at: new Date().toISOString(), org_id: (user as any)?.org_id || "",
@@ -55,9 +57,10 @@ export const PUT = withAuth(async (req, supabase, _uid, context) => {
 
 export const DELETE = withAuth(async (req, supabase, _uid, context) => {
   const { id } = await context.params;
+  const svc = createServiceClient();
   const { data: existing } = await supabase.from("appointments").select("id").eq("id", id).single();
   if (!existing) return err("Not found", 404);
-  const { error } = await supabase.from("appointments").delete().eq("id", id);
+  const { error } = await svc.from("appointments").delete().eq("id", id);
   if (error) return err(error.message, 500);
   return ok(null);
 });

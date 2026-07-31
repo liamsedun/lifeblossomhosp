@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
-import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError, resolvePatientId } from "@/lib/api-utils";
+import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError, resolvePatientId, resolveOrgId } from "@/lib/api-utils";
+import { createServiceClient } from "@/lib/supabase/server";
 
 // GET /api/appointments — list (auto-scopes to patient for patient-role users)
 export const GET = withAuth(async (req, supabase, authUserId) => {
@@ -26,7 +27,7 @@ export const GET = withAuth(async (req, supabase, authUserId) => {
 });
 
 // POST /api/appointments
-export const POST = withAuth(async (req, supabase) => {
+export const POST = withAuth(async (req, supabase, authUserId) => {
   const body = await parseBody<{
     patient_id: string; doctor_id?: string; appointment_date: string;
     start_time: string; end_time?: string; type?: string; reason?: string;
@@ -36,9 +37,14 @@ export const POST = withAuth(async (req, supabase) => {
     throw new ValidationError("Missing required fields: patient_id, appointment_date, start_time");
   }
 
-  const { data, error } = await supabase
+  const orgId = await resolveOrgId(supabase, authUserId);
+  if (!orgId) return err("User profile not found", 404);
+
+  const svc = createServiceClient();
+  const { data, error } = await svc
     .from("appointments")
     .insert({
+      org_id: orgId,
       patient_id: body.patient_id,
       doctor_id: body.doctor_id || null,
       appointment_date: body.appointment_date,

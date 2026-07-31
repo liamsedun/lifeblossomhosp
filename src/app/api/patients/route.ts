@@ -66,7 +66,7 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   if (!authData.user) return err("Failed to create auth user", 500);
 
   // Create user profile
-  const { error: userError } = await supabase.from("users").insert({
+  const { error: userError } = await svc.from("users").insert({
     id: authData.user.id, org_id: orgId, email, role: "patient",
     first_name, last_name, phone: body.phone || null, password_hash: "",
   });
@@ -84,7 +84,7 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
     "emergency_contact_name", "emergency_contact_phone"] as const)
     if (body[k] !== undefined && body[k] !== "") patientFields[k] = body[k];
 
-  const { data: patient, error: patientError } = await supabase
+  const { data: patient, error: patientError } = await svc
     .from("patients").insert(patientFields)
     .select("*, user:users(id, org_id, email, role, first_name, last_name, phone, avatar_url, is_active)")
     .single();

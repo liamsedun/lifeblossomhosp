@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { withAuth, ok, err, parseBody } from "@/lib/api-utils";
+import { createServiceClient } from "@/lib/supabase/server";
 
 export const GET = withAuth(async (req, supabase, authUserId, context) => {
   const { id } = await context.params;
@@ -69,7 +70,8 @@ export const PUT = withAuth(async (req, supabase, authUserId, context) => {
 
   if (Object.keys(updates).length === 0) return err("No fields to update", 400);
 
-  const { error } = await supabase.from("users").update(updates).eq("id", id);
+  const svc = createServiceClient();
+  const { error } = await svc.from("users").update(updates).eq("id", id);
   if (error) return err(error.message, 500);
   return ok({ updated: true });
 });
@@ -100,7 +102,8 @@ export const DELETE = withAuth(async (req, supabase, authUserId, context) => {
   }
 
   // Soft delete — deactivate the user
-  const { error } = await supabase.from("users").update({ is_active: false }).eq("id", id);
+  const svc = createServiceClient();
+  const { error } = await svc.from("users").update({ is_active: false }).eq("id", id);
   if (error) return err(error.message, 500);
   return ok({ deleted: true });
 });
