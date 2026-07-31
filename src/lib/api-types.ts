@@ -11,7 +11,7 @@ export type MedicationRoute = "oral" | "iv" | "intramuscular" | "topical" | "sub
 export type InvoiceStatus = "draft" | "pending" | "paid" | "partially_paid" | "cancelled" | "refunded";
 export type PaymentMethod = "cash" | "card" | "transfer" | "insurance" | "mobile_money";
 export type PaymentStatus = "pending" | "completed" | "failed" | "refunded";
-export type NotificationType = "appointment_reminder" | "payment_due" | "lab_result" | "prescription_refill" | "general";
+export type NotificationType = "appointment_reminder" | "payment_due" | "lab_result" | "prescription_refill" | "general" | "chat_message";
 export type AuditAction = "create" | "update" | "delete" | "view" | "login" | "logout";
 
 // --- Organization ---
@@ -279,6 +279,79 @@ export interface InternalMessageRecipient {
   read_at: string | null;
   created_at: string;
   recipient?: User;
+}
+
+// --- Real-time Chat ---
+export interface ChatOtherUser {
+  id: string;
+  first_name: string;
+  last_name: string;
+  role: string;
+  avatar_url: string | null;
+  phone: string | null;
+  specialization?: string | null;
+  staff_number?: string | null;
+}
+
+export interface Chat {
+  id: string;
+  patient_id: string;
+  staff_user_id: string;
+  last_message: string | null;
+  last_sender_id: string | null;
+  last_message_at: string | null;
+  created_at: string;
+  updated_at: string;
+  unread_count: number;
+  other_user: ChatOtherUser | null;
+}
+
+export interface ChatDirectoryEntry {
+  id: string;
+  patient_id?: string | null;
+  first_name: string;
+  last_name: string;
+  role: string;
+  avatar_url: string | null;
+  specialization?: string | null;
+  staff_number?: string | null;
+}
+
+export interface ChatListResponse {
+  chats: Chat[];
+  directory: ChatDirectoryEntry[];
+  online: string[];
+  caller_role: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  chat_id: string;
+  sender_id: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface ChatWindowResponse {
+  messages: ChatMessage[];
+  chat_id: string;
+  other_user: ChatOtherUser | null;
+  has_more: boolean;
+}
+
+export interface CreateChatResponse {
+  chat: {
+    id: string;
+    patient_id: string;
+    staff_user_id: string;
+    last_message: string | null;
+    last_sender_id: string | null;
+    last_message_at: string | null;
+    created_at: string;
+    updated_at: string;
+  };
+  other_user: ChatOtherUser | null;
 }
 
 // --- Doctor's Clinical Visit Notes ---

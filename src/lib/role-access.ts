@@ -19,6 +19,7 @@ export const NAV_ACCESS: NavItem[] = [
   { label: "Expenses",      href: "/admin/expenses",    icon: "Receipt",         roles: ["super_admin", "admin", "accountant"] },
   { label: "Other Income",  href: "/admin/other-income",icon: "Gift",            roles: ["super_admin", "admin", "accountant"] },
   { label: "Internal Mail", href: "/admin/internal-mail",icon: "Mail",           roles: ["super_admin", "admin", "doctor", "accountant", "nurse"] },
+  { label: "Live Chat",     href: "/admin/chats",        icon: "MessageSquare",  roles: ["super_admin", "admin", "doctor", "accountant", "nurse"] },
   { label: "Staff",         href: "/admin/staff",       icon: "Stethoscope",     roles: ["super_admin", "admin", "accountant"] },
   { label: "Reports",       href: "/admin/reports",     icon: "BarChart3",       roles: ["super_admin", "admin", "accountant"] },
   { label: "Settings",      href: "/admin/settings",    icon: "Settings",        roles: ["super_admin"] },

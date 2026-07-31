@@ -5,15 +5,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Home, Calendar, CreditCard, User, Bell, ChevronRight,
-  MessageCircle, X,
+  MessageCircle, MessagesSquare, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
+import { useInboxRealtime } from "@/lib/chat";
 import type { Notification } from "@/lib/api-types";
 
 const tabs = [
   { href: "/patient", label: "Home", icon: Home },
   { href: "/patient/appointments", label: "Appointments", icon: Calendar },
+  { href: "/patient/chats", label: "Chat", icon: MessagesSquare },
   { href: "/patient/payments", label: "Payments", icon: CreditCard },
   { href: "/patient/profile", label: "Profile", icon: User },
 ];
@@ -23,6 +25,7 @@ const typeIcons: Record<string, string> = {
   payment_due: "💳",
   lab_result: "🔬",
   prescription_refill: "💊",
+  chat_message: "💬",
   general: "✉️",
 };
 
@@ -31,6 +34,8 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [chatUnread, setChatUnread] = useState(0);
+  const [chatToast, setChatToast] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const bellRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -47,6 +52,40 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
       })
       .catch(() => {});
   }, []);
+
+  // Chat unread badge — poll + realtime push
+  const [chatData, setChatData] = useState<{ chats: { id: string; other_user: { first_name: string; last_name: string } | null }[] } | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    const poll = () => {
+      fetch("/api/chats")
+        .then((r) => r.json())
+        .then((json) => {
+          if (json.success && mounted) {
+            const total = (json.data.chats ?? []).reduce((acc: number, c: any) => acc + (c.unread_count ?? 0), 0);
+            setChatUnread(total);
+            setChatData(json.data);
+          }
+        })
+        .catch(() => {});
+    };
+    poll();
+    const id = setInterval(poll, 30_000);
+    return () => {
+      mounted = false;
+      clearInterval(id);
+    };
+  }, []);
+
+  useInboxRealtime(!!user, (ev) => {
+    if (!user) return;
+    if (ev.sender_id === user.id) return;
+    setChatUnread((n) => n + 1);
+    const chat = chatData?.chats.find((c) => c.id === ev.chat_id);
+    const name = chat?.other_user ? `${chat.other_user.first_name} ${chat.other_user.last_name}`.trim() : "your care team";
+    setChatToast(`New message from ${name}`);
+    window.setTimeout(() => setChatToast(null), 4000);
+  });
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -175,13 +214,19 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
       </header>
 
       <main className="flex-1 max-w-lg mx-auto w-full px-4 pb-20 pt-4">
+        {chatToast && (
+          <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-[#1a2540] border border-[#e0a84a]/30 text-white text-sm px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 animate-pulse">
+            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            {chatToast}
+          </div>
+        )}
         {children}
       </main>
 
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#0d1322]/90 backdrop-blur-xl border-t border-white/[0.06]">
         <div className="max-w-lg mx-auto flex items-center justify-around h-16 px-2">
           {tabs.map(({ href, label, icon: Icon }) => {
-            const isActive = pathname === href;
+            const isActive = pathname === href || (href !== "/patient" && pathname.startsWith(href));
             return (
               <Link
                 key={href}
@@ -194,7 +239,14 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
                 {isActive && (
                   <span className="absolute inset-0 rounded-xl bg-[#e0a84a]/10 border border-[#e0a84a]/20" />
                 )}
-                <Icon className={cn("w-5 h-5 relative z-10", isActive && "drop-shadow-[0_0_6px_rgba(224,168,74,0.3)]")} />
+                <span className="relative z-10">
+                  <Icon className={cn("w-5 h-5", isActive && "drop-shadow-[0_0_6px_rgba(224,168,74,0.3)]")} />
+                  {href === "/patient/chats" && chatUnread > 0 && (
+                    <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 flex items-center justify-center bg-red-500 text-white text-[9px] font-bold rounded-full px-1 leading-none">
+                      {chatUnread > 9 ? "9+" : chatUnread}
+                    </span>
+                  )}
+                </span>
                 <span className="text-[10px] font-medium leading-tight relative z-10">{label}</span>
               </Link>
             );

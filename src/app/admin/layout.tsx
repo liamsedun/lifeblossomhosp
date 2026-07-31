@@ -23,6 +23,7 @@ import {
   CheckCheck,
   Mail,
   MailOpen,
+  MessageSquare,
 } from "lucide-react";
 import { cn, formatDate, formatTime } from "@/lib/utils";
 import Logo from "@/components/ui/logo";
@@ -52,7 +53,7 @@ interface NotificationItem {
 
 const ICON_MAP: Record<string, React.ElementType> = {
   LayoutDashboard, Users, CalendarDays, Wallet, Receipt, Gift,
-  Mail, Stethoscope, BarChart3, Settings, UserCircle,
+  Mail, MessageSquare, Stethoscope, BarChart3, Settings, UserCircle,
 };
 
 function getVisibleNav(role?: UserRole | null) {
