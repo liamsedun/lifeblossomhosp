@@ -14,7 +14,7 @@ const IMG = {
   hero: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?fm=jpg&q=80&w=1920&auto=format&fit=crop",
   team: "https://images.unsplash.com/photo-1579154204601-01588f351e67?fm=jpg&q=80&w=1200&auto=format&fit=crop",
   building: "https://images.unsplash.com/photo-1526256262350-7da7584cf5eb?fm=jpg&q=80&w=1920&auto=format&fit=crop",
-  doctor: "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?fm=jpg&q=80&w=1000&auto=format&fit=crop",
+  doctor: "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?fm=jpg&q=80&w=1000&auto=format&fit=crop",
   care: "https://images.unsplash.com/photo-1584982751601-97dcc096659c?fm=jpg&q=80&w=1000&auto=format&fit=crop",
   facility: "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?fm=jpg&q=80&w=1200&auto=format&fit=crop",
 };
