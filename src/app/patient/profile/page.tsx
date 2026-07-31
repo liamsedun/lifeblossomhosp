@@ -126,7 +126,7 @@ export default function ProfilePage() {
           setPatient(meJson.data);
           targetPatientId = meJson.data.id;
         } else {
-          throw new Error("Your patient record could not be loaded. Please refresh the page.");
+          throw new Error(meJson.error || "Your patient record could not be loaded. Please refresh the page.");
         }
       }
 
