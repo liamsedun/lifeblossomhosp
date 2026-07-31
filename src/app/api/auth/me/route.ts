@@ -23,11 +23,13 @@ export async function GET() {
       return NextResponse.json({ success: false, error: "Not authenticated" }, { status: 401 });
     }
 
-    // Query through RLS — this returns only the current user's own record
-    // (enforced by the "user_self" policy: WHERE id = auth.uid())
+    // Query the public.users table filtered by the authenticated user's ID.
+    // MUST filter by id — RLS is not guaranteed to scope to the current user,
+    // and without it `.single()` returns the first row (a different user!).
     const { data: profile, error: profileError } = await supabase
       .from("users")
       .select("id, org_id, email, role, first_name, last_name, phone, avatar_url, is_active, last_login_at, created_at, updated_at, organization:organizations(*)")
+      .eq("id", authUser.id)
       .single();
 
     if (profileError || !profile) {

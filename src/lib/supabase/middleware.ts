@@ -53,11 +53,13 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (authUser) {
-    // Fetch the user's role from the public.users table via RLS
-    // (must use the authenticated client so RLS applies)
+    // Fetch the user's role from the public.users table.
+    // MUST filter by authUser.id — otherwise RLS may return the
+    // first row in the org, mis-identifying the current user.
     const { data: profile } = await supabase
       .from("users")
       .select("role")
+      .eq("id", authUser.id)
       .maybeSingle();
 
     const role = (profile?.role as Role | undefined) || null;
