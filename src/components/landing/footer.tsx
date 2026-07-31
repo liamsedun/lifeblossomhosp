@@ -3,9 +3,9 @@ import Logo from "@/components/ui/logo";
 
 const quickLinks = [
   { label: "Home", href: "#home" },
+  { label: "About Us", href: "/about" },
   { label: "Services", href: "#services" },
   { label: "Our Doctors", href: "#doctors" },
-  { label: "About Us", href: "#about" },
   { label: "Contact", href: "#contact" },
   { label: "Book Appointment", href: "/login" },
 ];
