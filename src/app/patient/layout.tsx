@@ -4,8 +4,8 @@ import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Home, Calendar, CreditCard, FileText, User, Bell, ChevronRight,
-  MessageCircle, X, Mail,
+  Home, Calendar, CreditCard, User, Bell, ChevronRight,
+  MessageCircle, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
@@ -14,10 +14,7 @@ import type { Notification } from "@/lib/api-types";
 const tabs = [
   { href: "/patient", label: "Home", icon: Home },
   { href: "/patient/appointments", label: "Appointments", icon: Calendar },
-  { href: "/patient/invoices", label: "Bills", icon: CreditCard },
   { href: "/patient/payments", label: "Payments", icon: CreditCard },
-  { href: "/patient/records", label: "Records", icon: FileText },
-  { href: "/patient/internal-mail", label: "Messages", icon: Mail },
   { href: "/patient/profile", label: "Profile", icon: User },
 ];
 

@@ -59,6 +59,9 @@ export default function PatientDashboard() {
     { label: "Book", href: "/patient/book", gradient: "from-[#e0a84a] to-amber-500" },
     { label: "Pay", href: "/patient/payments", gradient: "from-emerald-500 to-teal-400" },
     { label: "Chat", href: "https://wa.me/2349058038476", gradient: "from-blue-500 to-indigo-400" },
+    { label: "Records", href: "/patient/records", gradient: "from-violet-500 to-purple-400" },
+    { label: "Messages", href: "/patient/internal-mail", gradient: "from-rose-500 to-pink-400" },
+    { label: "Bills", href: "/patient/invoices", gradient: "from-orange-500 to-amber-400" },
   ];
 
   const summaryCards = [
@@ -96,7 +99,7 @@ export default function PatientDashboard() {
     {
       title: "Quick Actions",
       value: "What would you like?",
-      sub: "Book, Pay or Chat",
+      sub: "Book, Pay, Chat, Records, Messages, Bills",
       icon: Zap,
       gradient: "from-blue-500/20 via-blue-400/10 to-transparent",
       iconBg: "bg-blue-500/10 text-blue-400",
