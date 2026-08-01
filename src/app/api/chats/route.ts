@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { withAuth, ok, err, parseBody, resolveOrgId, resolvePatientId, NotFoundError, ValidationError } from "@/lib/api-utils";
 
+const STAFF_ROLES = ["doctor", "nurse", "admin", "accountant", "super_admin"];
+
 interface ChatListItem {
   id: string;
   patient_id: string;
@@ -22,6 +24,7 @@ interface ChatListItem {
     phone: string | null;
     specialization?: string | null;
     staff_number?: string | null;
+    is_dependant?: boolean;
   } | null;
 }
 
@@ -46,6 +49,7 @@ function toChatListItem(chat: any, other: any, unread: number): ChatListItem {
           phone: other.phone ?? null,
           specialization: other.specialization ?? null,
           staff_number: other.staff_number ?? null,
+          is_dependant: other.is_dependant ?? false,
         }
       : null,
   };
@@ -71,7 +75,9 @@ export async function GET(req: NextRequest) {
       const patientId = await resolvePatientId(svc, authUserId);
       if (!patientId) return err("Patient record not found", 404);
       chatQuery = chatQuery.eq("patient_id", patientId);
-    } else if (role !== "admin" && role !== "super_admin") {
+    } else if (role !== "super_admin") {
+      // Only the super admin sees everyone's conversations; every other
+      // staff member (admin/doctor/nurse/accountant) sees their own.
       chatQuery = chatQuery.eq("staff_user_id", authUserId);
     }
 
@@ -108,7 +114,7 @@ export async function GET(req: NextRequest) {
     const patientIds = new Set<string>();
     for (const c of chats ?? []) {
       if (role === "patient") otherIds.add(c.staff_user_id);
-      else { patientIds.add(c.patient_id); otherIds.add(c.staff_user_id === authUserId ? "" : c.staff_user_id); }
+      else patientIds.add(c.patient_id);
     }
 
     const otherProfileMap = new Map<string, any>();
@@ -125,7 +131,7 @@ export async function GET(req: NextRequest) {
     if (patientIds.size > 0) {
       const { data: pats } = await svc
         .from("patients")
-        .select("id, user_id, user:users(id, first_name, last_name, avatar_url, phone)")
+        .select("id, user_id, primary_account_id, user:users(id, first_name, last_name, avatar_url, phone)")
         .in("id", [...patientIds]);
       for (const p of pats ?? []) patientProfileMap.set(p.id, p);
     }
@@ -135,23 +141,23 @@ export async function GET(req: NextRequest) {
       if (role === "patient") {
         other = otherProfileMap.get(c.staff_user_id) ?? null;
       } else {
+        // Staff always see the patient (primary or dependant) as the
+        // conversation partner — never the colleague who owns the chat.
         const patientRow = patientProfileMap.get(c.patient_id);
-        const staffRow = otherProfileMap.get(c.staff_user_id);
-        other =
-          c.staff_user_id === authUserId
-            ? patientRow?.user
-              ? {
-                  id: patientRow.user_id,
-                  first_name: patientRow.user.first_name,
-                  last_name: patientRow.user.last_name,
-                  role: "patient",
-                  avatar_url: patientRow.user.avatar_url ?? null,
-                  phone: patientRow.user.phone ?? null,
-                  specialization: null,
-                  staff_number: null,
-                }
-              : null
-            : staffRow ?? null;
+        const u = patientRow?.user;
+        other = u
+          ? {
+              id: patientRow.user_id,
+              first_name: u.first_name,
+              last_name: u.last_name,
+              role: "patient",
+              avatar_url: u.avatar_url ?? null,
+              phone: u.phone ?? null,
+              specialization: null,
+              staff_number: null,
+              is_dependant: Boolean(patientRow.primary_account_id),
+            }
+          : null;
       }
       list.push(toChatListItem(c, other, unreadMap.get(c.id) ?? 0));
     }
@@ -159,25 +165,41 @@ export async function GET(req: NextRequest) {
     // ── Directory for starting new conversations ──
     let directory: any[] = [];
     if (role === "patient") {
-      const { data: staff } = await svc
-        .from("staff")
-        .select("staff_number, specialization, department, user:users(id, first_name, last_name, role, avatar_url)")
-        .in("users.role", ["doctor", "nurse", "admin", "accountant"]);
-      directory = (staff ?? []).map((s: any) => ({
-        id: s.user?.id,
-        patient_id: null,
-        first_name: s.user?.first_name,
-        last_name: s.user?.last_name,
-        role: s.user?.role,
-        avatar_url: s.user?.avatar_url,
-        specialization: s.specialization,
-        staff_number: s.staff_number,
-      })).filter((s: any) => s.id);
+      // All staff (doctors, admins, nurses, accountants, super admins),
+      // whether online or not — plus specialization where available.
+      const { data: staffUsers } = await svc
+        .from("users")
+        .select("id, first_name, last_name, role, avatar_url")
+        .eq("org_id", orgId)
+        .eq("is_active", true)
+        .in("role", STAFF_ROLES);
+      const staffUserIds = (staffUsers ?? []).map((u: any) => u.id);
+      const staffEnrich = new Map<string, any>();
+      if (staffUserIds.length > 0) {
+        const { data: staffRows } = await svc
+          .from("staff")
+          .select("user_id, specialization, staff_number")
+          .in("user_id", staffUserIds);
+        for (const s of staffRows ?? []) staffEnrich.set(s.user_id, s);
+      }
+      directory = (staffUsers ?? [])
+        .map((u: any) => ({
+          id: u.id,
+          patient_id: null,
+          first_name: u.first_name,
+          last_name: u.last_name,
+          role: u.role,
+          avatar_url: u.avatar_url ?? null,
+          specialization: staffEnrich.get(u.id)?.specialization ?? null,
+          staff_number: staffEnrich.get(u.id)?.staff_number ?? null,
+        }))
+        .filter((s: any) => s.id);
     } else {
-      // Staff/admin see all patients with login accounts they can message
+      // Staff see ALL registered patients — primary accounts and
+      // dependants alike — with their real photos.
       const { data: pats } = await svc
         .from("patients")
-        .select("id, user_id, user:users(id, first_name, last_name, avatar_url)")
+        .select("id, user_id, primary_account_id, user:users(id, first_name, last_name, avatar_url)")
         .eq("org_id", orgId)
         .not("user_id", "is", null);
       directory = (pats ?? []).map((p: any) => ({
@@ -189,6 +211,7 @@ export async function GET(req: NextRequest) {
         avatar_url: p.user?.avatar_url ?? null,
         specialization: null,
         staff_number: null,
+        is_dependant: Boolean(p.primary_account_id),
       })).filter((d: any) => d.id);
     }
 
@@ -220,8 +243,16 @@ export async function POST(req: NextRequest) {
       if (!body.staff_user_id) throw new ValidationError("staff_user_id is required");
       staffUserId = body.staff_user_id;
 
-      const { data: staffUser } = await svc.from("users").select("id, org_id").eq("id", staffUserId).single();
+      const { data: staffUser } = await svc
+        .from("users")
+        .select("id, org_id, role, is_active")
+        .eq("id", staffUserId)
+        .single();
       if (!staffUser || staffUser.org_id !== orgId) throw new NotFoundError("Staff member not found");
+      // Patients must never be able to open a chat with another patient.
+      if (!STAFF_ROLES.includes(staffUser.role)) {
+        return err("Patients can only chat with hospital staff", 403);
+      }
     } else {
       if (!body.patient_id) throw new ValidationError("patient_id is required");
       patientId = body.patient_id;
@@ -261,12 +292,20 @@ export async function POST(req: NextRequest) {
     } else {
       const { data: p } = await svc
         .from("patients")
-        .select("id, user_id, user:users(id, first_name, last_name, avatar_url, phone)")
+        .select("id, user_id, primary_account_id, user:users(id, first_name, last_name, avatar_url, phone)")
         .eq("id", patientId)
         .single();
       const userRow = (p as any)?.user as any;
       if (userRow) {
-        other = { id: (p as any).user_id, first_name: userRow.first_name, last_name: userRow.last_name, role: "patient", avatar_url: userRow.avatar_url ?? null, phone: userRow.phone ?? null };
+        other = {
+          id: (p as any).user_id,
+          first_name: userRow.first_name,
+          last_name: userRow.last_name,
+          role: "patient",
+          avatar_url: userRow.avatar_url ?? null,
+          phone: userRow.phone ?? null,
+          is_dependant: Boolean((p as any)?.primary_account_id),
+        };
       }
     }
 
@@ -280,6 +319,7 @@ export async function POST(req: NextRequest) {
             role: other.role,
             avatar_url: other.avatar_url ?? null,
             phone: other.phone ?? null,
+            is_dependant: other.is_dependant ?? false,
           }
         : null,
     });

@@ -291,6 +291,7 @@ export interface ChatOtherUser {
   phone: string | null;
   specialization?: string | null;
   staff_number?: string | null;
+  is_dependant?: boolean;
 }
 
 export interface Chat {
@@ -315,6 +316,7 @@ export interface ChatDirectoryEntry {
   avatar_url: string | null;
   specialization?: string | null;
   staff_number?: string | null;
+  is_dependant?: boolean;
 }
 
 export interface ChatListResponse {

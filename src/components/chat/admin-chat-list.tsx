@@ -120,6 +120,11 @@ export function AdminChatList({
                 <span className="text-sm font-semibold text-white truncate">
                   {chat.other_user ? `${chat.other_user.first_name} ${chat.other_user.last_name}` : "Patient"}
                 </span>
+                {chat.other_user?.is_dependant && (
+                  <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full border border-[#e0a84a]/30 text-[#e0a84a] bg-[#e0a84a]/10 shrink-0">
+                    Dependant
+                  </span>
+                )}
                 {online.has(chat.other_user?.id ?? "") && (
                   <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
                 )}
@@ -165,8 +170,8 @@ export function AdminChatList({
                   <span className="text-sm font-semibold text-white truncate block">
                     {p.first_name} {p.last_name}
                   </span>
-                  <span className={cn("text-[9px] font-medium px-1.5 py-0.5 rounded-full border inline-block mt-0.5", roleTagClass("patient"))}>
-                    {roleLabel("patient")}
+                  <span className={cn("text-[9px] font-medium px-1.5 py-0.5 rounded-full border inline-block mt-0.5", p.is_dependant ? "border-[#e0a84a]/30 text-[#e0a84a] bg-[#e0a84a]/10" : roleTagClass("patient"))}>
+                    {p.is_dependant ? "Dependant" : roleLabel("patient")}
                   </span>
                 </div>
                 {creating === p.patient_id ? (
