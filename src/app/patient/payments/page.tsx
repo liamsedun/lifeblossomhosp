@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { CreditCard, ArrowUpRight, ArrowDownRight, ChevronRight, Receipt, Download, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePaymentStore } from "@/stores/payment-store";
+import { useAuth } from "@/contexts/auth-context";
 import PayNowButton from "@/components/payments/pay-now-button";
 import type { Invoice } from "@/lib/api-types";
 
@@ -122,6 +123,9 @@ export default function PaymentsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [receiptInvoice, setReceiptInvoice] = useState<Invoice | null>(null);
 
+  const { user } = useAuth();
+  const isDependant = user?.role === "patient" && Boolean(user.patient?.is_dependant);
+
   const invoices = usePaymentStore((s) => s.invoices);
   const payments = usePaymentStore((s) => s.payments);
   const totals = usePaymentStore((s) => s.totals);
@@ -194,13 +198,17 @@ export default function PaymentsPage() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0 ml-3">
                     <span className="text-sm font-bold text-amber-400">₦{outstanding.toLocaleString()}</span>
-                    <PayNowButton
-                      invoiceId={inv.id}
-                      patientId={inv.patient_id}
-                      amount={outstanding}
-                      className="h-8 text-xs px-3 bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] font-semibold rounded-xl hover:shadow-lg hover:shadow-[#e0a84a]/20 transition-all border-0"
-                      onSuccess={() => { fetchInvoices(); fetchPayments(); }}
-                    />
+                    {isDependant ? (
+                      <span className="text-[10px] text-white/40 border border-white/[0.08] rounded-xl px-2.5 py-1.5">Paid by main account holder</span>
+                    ) : (
+                      <PayNowButton
+                        invoiceId={inv.id}
+                        patientId={inv.patient_id}
+                        amount={outstanding}
+                        className="h-8 text-xs px-3 bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] font-semibold rounded-xl hover:shadow-lg hover:shadow-[#e0a84a]/20 transition-all border-0"
+                        onSuccess={() => { fetchInvoices(); fetchPayments(); }}
+                      />
+                    )}
                   </div>
                 </div>
               );
@@ -251,7 +259,7 @@ export default function PaymentsPage() {
                   >
                     <Download className="w-3.5 h-3.5" />Receipt
                   </button>
-                  {pmt.invoice && (pmt.invoice.total_amount - pmt.invoice.paid_amount > 0) && (
+                  {pmt.invoice && (pmt.invoice.total_amount - pmt.invoice.paid_amount > 0) && !isDependant && (
                     <PayNowButton
                       invoiceId={pmt.invoice.id}
                       patientId={pmt.invoice.patient_id}

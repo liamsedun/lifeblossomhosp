@@ -8,6 +8,7 @@ import {
   Loader2, Copy, AlertTriangle, Building2, Phone, MapPin, ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/auth-context";
 import type { Invoice } from "@/lib/api-types";
 
 interface BankAccount {
@@ -72,6 +73,9 @@ export default function PayInvoicePage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const invoiceId = params.id;
+
+  const { user } = useAuth();
+  const isDependant = user?.role === "patient" && Boolean(user.patient?.is_dependant);
 
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [org, setOrg] = useState<OrgInfo>({ name: "Life Blossom Hospital", address: "", phone: "", email: "" });
@@ -317,29 +321,48 @@ export default function PayInvoicePage() {
             </p>
           </div>
 
-          <div className="grid gap-3">
-            {methods.map((m) => (
-              <button
-                key={m.key}
-                onClick={m.action}
-                className="group flex items-center gap-4 rounded-2xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-xl p-4 text-left hover:border-[#e0a84a]/40 hover:-translate-y-0.5 transition-all"
+          {isDependant ? (
+            <div className="rounded-2xl border border-[#e0a84a]/20 bg-[#e0a84a]/[0.06] p-6 text-center">
+              <ShieldCheck className="w-10 h-10 text-[#e0a84a] mx-auto mb-3" />
+              <h3 className="text-base font-bold text-white">Paid by your main account holder</h3>
+              <p className="text-sm text-white/50 mt-1">
+                Dependants cannot make payments directly. Your main account holder
+                (or hospital staff) will settle this bill on your behalf.
+              </p>
+              <Link
+                href="/patient/payments"
+                className="mt-4 inline-flex h-10 px-5 items-center justify-center bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] text-sm font-semibold rounded-xl"
               >
-                <div className={cn("w-12 h-12 rounded-2xl bg-gradient-to-br flex items-center justify-center text-white shadow-lg shrink-0", m.accent)}>
-                  <m.icon className="w-6 h-6" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-white">{m.title}</p>
-                  <p className="text-xs text-white/50 mt-0.5">{m.desc}</p>
-                </div>
-                <span className="text-[#e0a84a] font-semibold text-sm group-hover:translate-x-1 transition-transform">→</span>
-              </button>
-            ))}
-          </div>
+                Back to Payments
+              </Link>
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-3">
+                {methods.map((m) => (
+                  <button
+                    key={m.key}
+                    onClick={m.action}
+                    className="group flex items-center gap-4 rounded-2xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-xl p-4 text-left hover:border-[#e0a84a]/40 hover:-translate-y-0.5 transition-all"
+                  >
+                    <div className={cn("w-12 h-12 rounded-2xl bg-gradient-to-br flex items-center justify-center text-white shadow-lg shrink-0", m.accent)}>
+                      <m.icon className="w-6 h-6" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-white">{m.title}</p>
+                      <p className="text-xs text-white/50 mt-0.5">{m.desc}</p>
+                    </div>
+                    <span className="text-[#e0a84a] font-semibold text-sm group-hover:translate-x-1 transition-transform">→</span>
+                  </button>
+                ))}
+              </div>
 
-          <p className="text-[11px] text-white/30 text-center flex items-center justify-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400/70" />
-            Payments are confirmed by hospital staff and your account is settled automatically.
-          </p>
+              <p className="text-[11px] text-white/30 text-center flex items-center justify-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400/70" />
+                Payments are confirmed by hospital staff and your account is settled automatically.
+              </p>
+            </>
+          )}
         </>
       )}
 

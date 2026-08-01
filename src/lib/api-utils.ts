@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // ─── Response helpers ───────────────────────────────────────────
@@ -75,8 +75,6 @@ export function withAuth(handler: Handler) {
  * service-role client so the call succeeds even if the public.users
  * row is temporarily invisible due to RLS.
  */
-import { createServiceClient } from "@/lib/supabase/server";
-
 export async function resolveOrgId(supabase: SupabaseClient, authUserId: string): Promise<string | null> {
   const { data: p } = await supabase.from("users").select("org_id").eq("id", authUserId).maybeSingle();
   if (p) return p.org_id;
@@ -113,4 +111,109 @@ export async function resolvePatientId(
     .maybeSingle();
 
   return patient?.id ?? null;
+}
+
+// ─── Family payment authorization ───────────────────────────────
+
+const PAYMENT_STAFF_ROLES = ["super_admin", "admin", "accountant"];
+
+export interface PaymentAccess {
+  /** The caller's own patients row (if they are a patient). */
+  patientId: string | null;
+  /** True if the caller is a dependant (linked to a primary account). */
+  isDependant: boolean;
+  /** The caller's primary account id when they are a dependant. */
+  primaryAccountId: string | null;
+  isStaff: boolean;
+}
+
+/**
+ * Resolve how the caller relates to family payments:
+ * - staff (super_admin/admin/accountant) may pay for anyone in the org
+ * - a primary patient may pay for themselves and their dependants
+ * - a dependant may NOT make payments at all (main account holder pays)
+ */
+export async function resolvePaymentAccess(
+  supabase: SupabaseClient,
+  authUserId: string
+): Promise<PaymentAccess> {
+  const svc = createServiceClient();
+
+  const { data: user } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", authUserId)
+    .single();
+
+  const role = user?.role;
+  if (!role || !["patient", "super_admin", "admin", "accountant", "doctor", "nurse"].includes(role)) {
+    return { patientId: null, isDependant: false, primaryAccountId: null, isStaff: false };
+  }
+
+  if (role !== "patient") {
+    return {
+      patientId: null,
+      isDependant: false,
+      primaryAccountId: null,
+      isStaff: PAYMENT_STAFF_ROLES.includes(role),
+    };
+  }
+
+  const { data: patient } = await svc
+    .from("patients")
+    .select("id, primary_account_id")
+    .eq("user_id", authUserId)
+    .maybeSingle();
+
+  if (!patient) return { patientId: null, isDependant: false, primaryAccountId: null, isStaff: false };
+
+  return {
+    patientId: patient.id,
+    isDependant: Boolean(patient.primary_account_id),
+    primaryAccountId: patient.primary_account_id || null,
+    isStaff: false,
+  };
+}
+
+/**
+ * Check whether the caller may create a payment for the given patient.
+ * Returns an error message (with HTTP status) or null when allowed.
+ */
+export async function paymentDeniedReason(
+  supabase: SupabaseClient,
+  authUserId: string,
+  targetPatientId: string
+): Promise<{ error: string; status: number } | null> {
+  const access = await resolvePaymentAccess(supabase, authUserId);
+
+  if (access.isStaff) return null;
+
+  if (!access.patientId) {
+    return { error: "You are not allowed to make payments", status: 403 };
+  }
+
+  // Dependants cannot pay at all — the main account holder pays on their behalf
+  if (access.isDependant) {
+    return {
+      error: "Only the main account holder can make payments on your behalf",
+      status: 403,
+    };
+  }
+
+  // Primary account holder: may pay for themselves or their own dependants
+  if (targetPatientId === access.patientId) return null;
+
+  const svc = createServiceClient();
+  const { data: target } = await svc
+    .from("patients")
+    .select("primary_account_id")
+    .eq("id", targetPatientId)
+    .maybeSingle();
+
+  if (target && target.primary_account_id === access.patientId) return null;
+
+  return {
+    error: "You can only make payments for yourself or your dependants",
+    status: 403,
+  };
 }

@@ -86,7 +86,8 @@ async function loadDependant(supabase: any, authUserId: string, dependantId: str
     // staff can access any dependant in the org
   } else {
     const myPatientId = await resolvePatientId(supabase, authUserId);
-    if (!myPatientId || myPatientId !== dependant.primary_account_id) {
+    // The primary account holder OR the dependant themself may view the profile
+    if (!myPatientId || (myPatientId !== dependant.primary_account_id && myPatientId !== dependant.id)) {
       throw Object.assign(new Error("You can only view dependants in your family account"), { status: 403 });
     }
   }
@@ -203,6 +204,13 @@ export const DELETE = withAuth(async (req, supabase, authUserId, ctx) => {
   const { dependant } = await loadDependant(supabase, authUserId, dependantId);
 
   const svc = createServiceClient();
+
+  // A dependant cannot remove their own account — only the primary holder/staff
+  const myPatientId = await resolvePatientId(supabase, authUserId);
+  if (myPatientId === dependantId) {
+    return err("You cannot delete your own dependant account", 403);
+  }
+
   const { error: deleteError } = await svc.from("patients").delete().eq("id", dependantId);
   if (deleteError) return err(deleteError.message, 500);
 

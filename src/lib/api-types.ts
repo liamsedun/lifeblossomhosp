@@ -40,6 +40,14 @@ export interface User {
   last_login_at: string | null;
   created_at: string;
   updated_at: string;
+  /** Present when role === 'patient' — family/account info from GET /api/auth/me. */
+  patient?: {
+    id: string;
+    patient_number: string;
+    is_primary_account: boolean;
+    primary_account_id: string | null;
+    is_dependant: boolean;
+  };
 }
 
 // --- Patient (extends User where role='patient') ---

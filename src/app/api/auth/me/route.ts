@@ -36,7 +36,27 @@ export async function GET() {
       return NextResponse.json({ success: false, error: "Profile not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, data: profile });
+    // For patients, attach the family/account info so the frontend can hide
+    // payment actions for dependants (main account holder pays on their behalf).
+    let patient: { id: string; patient_number: string; is_primary_account: boolean; primary_account_id: string | null; is_dependant: boolean } | null = null;
+    if (profile.role === "patient") {
+      const { data: patientRow, error: patientError } = await supabase
+        .from("patients")
+        .select("id, patient_number, is_primary_account, primary_account_id")
+        .eq("user_id", profile.id)
+        .maybeSingle();
+      if (!patientError && patientRow) {
+        patient = {
+          id: patientRow.id,
+          patient_number: patientRow.patient_number,
+          is_primary_account: Boolean(patientRow.is_primary_account),
+          primary_account_id: patientRow.primary_account_id || null,
+          is_dependant: Boolean(patientRow.primary_account_id),
+        };
+      }
+    }
+
+    return NextResponse.json({ success: true, data: { ...profile, patient } });
   } catch (err) {
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }

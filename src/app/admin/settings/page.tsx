@@ -825,6 +825,7 @@ function ResetPasswordDialog({ userId, userName }: { userId: string; userName: s
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [email, setEmail] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -835,16 +836,19 @@ function ResetPasswordDialog({ userId, userName }: { userId: string; userName: s
     if (password !== confirm) { setMessage("Passwords do not match"); return; }
     setSaving(true);
     try {
+      const payload: Record<string, string> = { password };
+      if (email.trim()) payload.email = email.trim();
       const res = await fetch(`/api/admin/users/${userId}/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (json.success) {
         setMessage("Password reset successfully");
         setPassword("");
         setConfirm("");
+        setEmail("");
       } else {
         setMessage(json.error || "Failed to reset password");
       }
@@ -873,6 +877,20 @@ function ResetPasswordDialog({ userId, userName }: { userId: string; userName: s
           Set a new password for <strong>{userName}</strong>.
         </p>
         <form onSubmit={handleSubmit} className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">
+              Login Email (optional)
+            </label>
+            <Input
+              type="email"
+              placeholder="For dependants — a real email to log in with"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <p className="text-xs text-text-secondary mt-1">
+              Dependants have no real login yet — set a password and (optionally) a real email to activate their login.
+            </p>
+          </div>
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">
               New Password

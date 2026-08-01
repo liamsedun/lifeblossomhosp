@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import {
   withAuth, ok, err, parseBody, ValidationError,
-  resolvePatientId, resolveOrgId,
+  resolvePatientId, resolveOrgId, resolvePaymentAccess,
 } from "@/lib/api-utils";
 import { createServiceClient } from "@/lib/supabase/server";
 import { notifyUsers } from "@/lib/notify";
@@ -30,6 +30,13 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
 
   const patientId = await resolvePatientId(supabase, authUserId);
   if (!patientId) return err("Patient profile not found", 404);
+
+  // Family payment rule: dependants cannot declare payments — the main
+  // account holder pays on their behalf
+  const access = await resolvePaymentAccess(supabase, authUserId);
+  if (access.isDependant) {
+    return err("Only the main account holder can make payments on your behalf", 403);
+  }
 
   const orgId = await resolveOrgId(supabase, authUserId);
   if (!orgId) return err("User profile not found — org could not be resolved", 404);

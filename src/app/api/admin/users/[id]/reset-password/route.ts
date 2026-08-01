@@ -31,18 +31,43 @@ export const POST = withAuth(async (req, supabase, authUserId, context) => {
     return err("Only super_admin can reset another super_admin's password", 403);
   }
 
-  const body = await parseBody<{ password: string }>(req);
+  const body = await parseBody<{ password: string; email?: string }>(req);
 
   if (!body.password || body.password.length < 6) {
     return err("Password must be at least 6 characters", 400);
   }
 
-  const serviceClient = createServiceClient();
-  const { error: updateError } = await serviceClient.auth.admin.updateUserById(
+  const svc = createServiceClient();
+
+  // Optional: set/replace the login email (dependant placeholders use fake emails).
+  // When provided, persist it to the profile first so patient-id login and
+  // profile lookups resolve consistently.
+  const loginEmail = body.email?.trim().toLowerCase();
+  if (loginEmail && loginEmail !== target.email) {
+    const { error: emailError } = await svc.from("users").update({ email: loginEmail }).eq("id", target.id);
+    if (emailError) return err(emailError.message, 500);
+  }
+
+  const { error: updateError } = await svc.auth.admin.updateUserById(
     target.id,
     { password: body.password }
   );
 
-  if (updateError) return err(updateError.message, 500);
+  if (updateError) {
+    // No auth account exists yet (e.g. dependant placeholder users).
+    // Provision a real Supabase Auth account with the SAME id via SQL.
+    if (/user.*not found|not found|no user/i.test(updateError.message || "")) {
+      const email = loginEmail || target.email;
+      const { error: provisionError } = await svc.rpc("provision_dependant_login", {
+        p_user_id: target.id,
+        p_email: email,
+        p_password: body.password,
+      });
+      if (provisionError) return err(provisionError.message, 500);
+      return ok({ message: "Password set successfully" });
+    }
+    return err(updateError.message, 500);
+  }
+
   return ok({ message: "Password reset successfully" });
 });

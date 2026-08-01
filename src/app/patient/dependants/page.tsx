@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/auth-context";
 import type { Dependant } from "@/lib/api-types";
 
 const MAX_DEPENDANTS = 5;
@@ -264,6 +265,8 @@ function AddDependantModal({ open, onClose, onCreated, maxReached }: {
 
 export default function DependantsPage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const isDependant = user?.role === "patient" && Boolean(user.patient?.is_dependant);
   const [dependants, setDependants] = useState<Dependant[]>([]);
   const [familyCode, setFamilyCode] = useState("");
   const [loading, setLoading] = useState(true);
@@ -303,19 +306,21 @@ export default function DependantsPage() {
           <h2 className="text-xl font-bold text-white">Dependants</h2>
           <p className="text-xs text-white/40">Manage family members under your care</p>
         </div>
-        <button
-          onClick={() => setShowAdd(true)}
-          disabled={maxReached}
-          className={cn(
-            "inline-flex items-center gap-1.5 h-10 px-4 rounded-xl text-sm font-semibold transition-all active:scale-[0.98]",
-            maxReached
-              ? "bg-white/[0.04] text-white/30 cursor-not-allowed"
-              : "bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] shadow-lg shadow-[#e0a84a]/20 hover:shadow-xl hover:shadow-[#e0a84a]/30"
-          )}
-        >
-          <UserPlus className="w-4 h-4" />
-          Add Dependant
-        </button>
+        {!isDependant && (
+          <button
+            onClick={() => setShowAdd(true)}
+            disabled={maxReached}
+            className={cn(
+              "inline-flex items-center gap-1.5 h-10 px-4 rounded-xl text-sm font-semibold transition-all active:scale-[0.98]",
+              maxReached
+                ? "bg-white/[0.04] text-white/30 cursor-not-allowed"
+                : "bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] shadow-lg shadow-[#e0a84a]/20 hover:shadow-xl hover:shadow-[#e0a84a]/30"
+            )}
+          >
+            <UserPlus className="w-4 h-4" />
+            Add Dependant
+          </button>
+        )}
       </div>
 
       <GlassCard className="flex items-center justify-between gap-3">
@@ -362,14 +367,18 @@ export default function DependantsPage() {
           </div>
           <h3 className="text-base font-semibold text-white">No dependants yet</h3>
           <p className="text-xs text-white/40 max-w-[240px] mt-1">
-            Add family members — children, spouse or relatives — so they're covered under your family account.
+            {isDependant
+              ? "Your main account holder manages dependants for your family."
+              : "Add family members — children, spouse or relatives — so they're covered under your family account."}
           </p>
-          <button
-            onClick={() => setShowAdd(true)}
-            className="mt-4 h-10 px-5 bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] text-sm font-semibold rounded-xl inline-flex items-center gap-2 shadow-lg shadow-[#e0a84a]/20 hover:shadow-xl hover:shadow-[#e0a84a]/30 transition-all active:scale-[0.98]"
-          >
-            <UserPlus className="w-4 h-4" /> Add Dependant
-          </button>
+          {!isDependant && (
+            <button
+              onClick={() => setShowAdd(true)}
+              className="mt-4 h-10 px-5 bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] text-sm font-semibold rounded-xl inline-flex items-center gap-2 shadow-lg shadow-[#e0a84a]/20 hover:shadow-xl hover:shadow-[#e0a84a]/30 transition-all active:scale-[0.98]"
+            >
+              <UserPlus className="w-4 h-4" /> Add Dependant
+            </button>
+          )}
         </GlassCard>
       ) : (
         <div className="grid grid-cols-2 gap-3">
@@ -436,7 +445,7 @@ export default function DependantsPage() {
         </div>
       )}
 
-      {!maxReached && dependants.length > 0 && (
+      {!isDependant && !maxReached && dependants.length > 0 && (
         <button
           onClick={() => setShowAdd(true)}
           className="w-full h-12 rounded-2xl border border-dashed border-white/[0.12] text-sm text-white/50 hover:text-[#e0a84a] hover:border-[#e0a84a]/40 transition-all inline-flex items-center justify-center gap-2 bg-white/[0.02]"

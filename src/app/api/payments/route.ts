@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError, resolvePatientId, resolveOrgId } from "@/lib/api-utils";
+import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError, resolvePatientId, resolveOrgId, paymentDeniedReason } from "@/lib/api-utils";
 import { createServiceClient } from "@/lib/supabase/server";
 
 export const GET = withAuth(async (req, supabase, authUserId) => {
@@ -32,6 +32,10 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   if (!body.invoice_id || !body.patient_id || !body.amount || !body.payment_method) {
     throw new ValidationError("Missing required fields: invoice_id, patient_id, amount, payment_method");
   }
+
+  // Family payment rule: staff or main account holder (self + dependants) only
+  const denied = await paymentDeniedReason(supabase, authUserId, body.patient_id);
+  if (denied) return err(denied.error, denied.status);
 
   const svc = createServiceClient();
 

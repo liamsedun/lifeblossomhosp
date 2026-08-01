@@ -2,9 +2,10 @@
 
 import { use, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Receipt, CreditCard, Download, CheckCircle, Clock } from "lucide-react";
+import { ArrowLeft, Receipt, CreditCard, Download, CheckCircle, Clock, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useInvoice } from "@/hooks/use-billing";
+import { useAuth } from "@/contexts/auth-context";
 import PayNowButton from "@/components/payments/pay-now-button";
 
 const statusColors: Record<string, string> = {
@@ -28,6 +29,8 @@ const statusLabels: Record<string, string> = {
 export default function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { data: invoice, loading } = useInvoice(id);
+  const { user } = useAuth();
+  const isDependant = user?.role === "patient" && Boolean(user.patient?.is_dependant);
 
   if (loading) {
     return (
@@ -177,13 +180,18 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
 
       {/* Actions */}
       <div className="flex gap-2">
-        {outstanding > 0 && (
+        {outstanding > 0 && !isDependant && (
           <PayNowButton
             invoiceId={invoice.id}
             patientId={invoice.patient_id}
             amount={outstanding}
             className="flex-1 h-11 text-sm"
           />
+        )}
+        {outstanding > 0 && isDependant && (
+          <p className="flex-1 text-xs text-text-secondary flex items-center justify-center gap-1.5 border border-border rounded-xl h-11">
+            <ShieldCheck className="w-4 h-4" /> Paid by your main account holder
+          </p>
         )}
         <button
           onClick={() => window.print()}

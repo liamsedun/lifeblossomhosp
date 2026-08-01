@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { withAuth, ok, err, parseBody, ValidationError, resolveOrgId } from "@/lib/api-utils";
+import { withAuth, ok, err, parseBody, ValidationError, resolveOrgId, paymentDeniedReason } from "@/lib/api-utils";
 import { initializeTransaction } from "@/lib/paystack";
 
 /**
@@ -22,6 +22,10 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   if (!body.invoice_id || !body.patient_id || !body.email || !body.amount) {
     throw new ValidationError("Missing required fields: invoice_id, patient_id, email, amount");
   }
+
+  // Family payment rule: staff or main account holder (self + dependants) only
+  const denied = await paymentDeniedReason(supabase, authUserId, body.patient_id);
+  if (denied) return err(denied.error, denied.status);
 
   // Verify the invoice exists and is payable
   const { data: invoice } = await supabase

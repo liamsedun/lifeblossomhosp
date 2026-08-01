@@ -9,6 +9,7 @@ import {
   CheckCircle2, Clock, PlusCircle, Wallet, ShieldCheck, Baby, Heart, Camera,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/auth-context";
 import type { Dependant, MedicalRecord, Invoice, Appointment } from "@/lib/api-types";
 
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
@@ -56,6 +57,9 @@ type Tab = "biodata" | "records" | "bills" | "appointments";
 export default function DependantProfilePage() {
   const params = useParams<{ id: string }>();
   const dependantId = params.id;
+
+  const { user } = useAuth();
+  const isDependant = user?.role === "patient" && Boolean(user.patient?.is_dependant);
 
   const [dependant, setDependant] = useState<Dependant | null>(null);
   const [siblings, setSiblings] = useState<Dependant[]>([]);
@@ -161,13 +165,15 @@ export default function DependantProfilePage() {
           >
             <Pencil className="w-4 h-4" />
           </button>
-          <button
-            onClick={() => setShowDelete(true)}
-            className="p-2.5 rounded-xl border border-white/[0.08] bg-white/[0.03] text-white/60 hover:text-rose-400 hover:border-rose-500/40 transition-all"
-            title="Remove dependant"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+          {!isDependant && (
+            <button
+              onClick={() => setShowDelete(true)}
+              className="p-2.5 rounded-xl border border-white/[0.08] bg-white/[0.03] text-white/60 hover:text-rose-400 hover:border-rose-500/40 transition-all"
+              title="Remove dependant"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -389,13 +395,16 @@ export default function DependantProfilePage() {
                       <p className="text-sm font-bold text-white">₦{inv.total_amount.toLocaleString()}</p>
                       {unpaid && <p className="text-[10px] text-rose-400">₦{due.toLocaleString()} due</p>}
                     </div>
-                    {unpaid && (
+                    {unpaid && !isDependant && (
                       <button
                         onClick={() => setPayingInvoice(inv)}
                         className="h-9 px-4 rounded-xl bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] text-xs font-semibold inline-flex items-center gap-1.5 shadow-lg shadow-[#e0a84a]/15 hover:shadow-xl hover:shadow-[#e0a84a]/25 transition-all active:scale-[0.97]"
                       >
                         <Wallet className="w-3.5 h-3.5" /> Pay
                       </button>
+                    )}
+                    {unpaid && isDependant && (
+                      <span className="text-[10px] text-white/40 border border-white/[0.08] rounded-xl px-2.5 py-1.5">Paid by main account holder</span>
                     )}
                   </div>
                   {(inv.paid_amount || 0) > 0 && (

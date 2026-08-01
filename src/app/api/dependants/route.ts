@@ -178,10 +178,16 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
 
   const { data: primary } = await svc
     .from("patients")
-    .select("id, patient_number, is_primary_account")
+    .select("id, patient_number, is_primary_account, primary_account_id")
     .eq("id", familyPatientId)
     .maybeSingle();
   if (!primary) return err("Family account not found", 404);
+
+  // Only a main account holder can add dependants — dependants cannot
+  // create further dependants under themselves
+  if (primary.primary_account_id) {
+    return err("Only the main account holder can add dependants", 403);
+  }
 
   // Business rule: max 5 dependants per family unit
   const { count: dependantCount } = await svc
