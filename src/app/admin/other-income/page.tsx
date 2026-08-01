@@ -85,16 +85,24 @@ export default function OtherIncomePage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<IncomeForm>(emptyForm);
 
-  const load = useCallback(async () => {
+  const now = new Date();
+  const [month, setMonth] = useState(
+    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+  );
+
+  const load = useCallback(async (m: string) => {
     setLoading(true);
     try {
-      const res = await fetch("/api/other-income");
+      const [y, mm] = m.split("-").map(Number);
+      const from = `${y}-${String(mm).padStart(2, "0")}-01`;
+      const to = new Date(y, mm, 0).toISOString().split("T")[0];
+      const res = await fetch(`/api/other-income?from=${from}&to=${to}&page_size=100`);
       const json = await res.json();
       if (json.success) setData(json.data || []);
     } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(month); }, [month, load]);
 
   const filtered = useMemo(() => {
     let items = data;
@@ -109,22 +117,24 @@ export default function OtherIncomePage() {
     return items;
   }, [data, categoryFilter, search]);
 
+  const monthLabel = useMemo(() => {
+    const [y, m] = month.split("-").map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+  }, [month]);
+
   const totals = useMemo(() => {
+    const entries = filtered.length;
     const total = filtered.reduce((s, d) => s + d.amount, 0);
-    const thisMonth = filtered.filter((d) => {
-      const now = new Date();
-      return d.income_date >= new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
-    }).reduce((s, d) => s + d.amount, 0);
     const byCategory: Record<string, number> = {};
     filtered.forEach((d) => { byCategory[d.category] = (byCategory[d.category] || 0) + d.amount; });
-    return { total, thisMonth, byCategory };
+    return { total, avg: entries > 0 ? total / entries : 0, byCategory, entries };
   }, [filtered]);
 
   const summaryCards = [
     { label: "Total Other Income", value: formatCurrency(totals.total), icon: TrendingUp, gradient: "bg-gradient-to-br from-emerald-500 via-teal-400 to-cyan-300" },
-    { label: "This Month", value: formatCurrency(totals.thisMonth), icon: Calendar, gradient: "bg-gradient-to-br from-blue-500 via-indigo-400 to-violet-300" },
+    { label: "Avg per Entry", value: formatCurrency(totals.avg), icon: Calendar, gradient: "bg-gradient-to-br from-blue-500 via-indigo-400 to-violet-300" },
     { label: "Categories", value: String(Object.keys(totals.byCategory).length), icon: Wallet, gradient: "bg-gradient-to-br from-purple-500 via-pink-400 to-rose-300" },
-    { label: "Total Entries", value: String(filtered.length), icon: Gift, gradient: "bg-gradient-to-br from-amber-500 via-orange-400 to-red-300" },
+    { label: "Total Entries", value: String(totals.entries), icon: Gift, gradient: "bg-gradient-to-br from-amber-500 via-orange-400 to-red-300" },
   ];
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -149,7 +159,7 @@ export default function OtherIncomePage() {
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || "Failed to save");
-      setShowAdd(false); setEditItem(null); load();
+      setShowAdd(false); setEditItem(null); load(month);
     } catch (err: any) { alert(err.message); }
     finally { setSaving(false); }
   };
@@ -161,7 +171,7 @@ export default function OtherIncomePage() {
       const res = await fetch(`/api/other-income/${deleteItem.id}`, { method: "DELETE" });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || "Delete failed");
-      setDeleteItem(null); load();
+      setDeleteItem(null); load(month);
     } catch { /* ignore */ }
     finally { setDeleting(false); }
   };
@@ -183,9 +193,11 @@ export default function OtherIncomePage() {
     const rows: string[][] = [];
     rows.push(["Life Blossom Hospital — Other Income Report"]);
     rows.push(["Generated", new Date().toLocaleString()]);
+    rows.push(["Period", monthLabel]);
     rows.push([""]);
     rows.push(["Total Income", formatCurrency(totals.total)]);
-    rows.push(["This Month", formatCurrency(totals.thisMonth)]);
+    rows.push(["Average per Entry", formatCurrency(totals.avg)]);
+    rows.push(["Entries", String(totals.entries)]);
     rows.push([""]);
     rows.push(["Date", "Description", "Category", "Amount", "Payment Method", "Source", "Notes"]);
     filtered.forEach((d) => {
@@ -204,7 +216,17 @@ export default function OtherIncomePage() {
           <h1 className="text-2xl font-bold text-white">Other Income</h1>
           <p className="text-sm text-white/50 mt-1">Donations, food/drink/drug sales, and consumables</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Calendar className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/40 pointer-events-none" />
+            <input
+              type="month"
+              value={month}
+              onChange={(e) => e.target.value && setMonth(e.target.value)}
+              className="h-9 rounded-xl border border-white/[0.08] bg-white/[0.04] pl-9 pr-3 text-sm text-white [color-scheme:dark] focus:outline-none focus:border-[#e0a84a]/40"
+              aria-label="Reporting period"
+            />
+          </div>
           <Button variant="outline" onClick={exportCsv}
             className="bg-white text-black border-border hover:bg-gray-100 h-9">
             <Download className="size-4 mr-1" />Export
@@ -225,6 +247,7 @@ export default function OtherIncomePage() {
                 <div>
                   <p className="text-sm text-white/50">{card.label}</p>
                   <p className="text-xl font-bold text-white mt-1">{card.value}</p>
+                  <p className="text-[10px] text-white/30 mt-0.5">{monthLabel}</p>
                 </div>
                 <div className="flex size-11 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.06] backdrop-blur-sm">
                   <Icon className="size-5 text-white/80" />

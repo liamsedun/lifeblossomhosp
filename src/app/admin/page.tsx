@@ -22,6 +22,8 @@ import { useInvoices } from "@/hooks/use-billing";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+const PERIODS = ["1 Week", "2 Weeks", "1 Month", "Last Quarter", "This Quarter", "6-Months", "1 Year"];
+
 function Trend({ up, value }: { up: boolean; value: string }) {
   return (
     <span className={cn("inline-flex items-center gap-0.5 text-xs font-medium", up ? "text-emerald-400" : "text-red-400")}>
@@ -64,8 +66,27 @@ export default function AdminDashboard() {
   const now = new Date();
   const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
+  const [period, setPeriod] = useState("1 Month");
   const [expensesByMonth, setExpensesByMonth] = useState<number>(0);
   const [loadingExpenses, setLoadingExpenses] = useState(false);
+
+  const periodBounds = useMemo(() => {
+    const end = new Date();
+    let start = new Date();
+    const y = end.getFullYear();
+    const m = end.getMonth();
+    switch (period) {
+      case "1 Week": start = new Date(end.getTime() - 7 * 86400000); break;
+      case "2 Weeks": start = new Date(end.getTime() - 14 * 86400000); break;
+      case "Last Quarter": start = new Date(y, m - 3, 1); break;
+      case "This Quarter": start = new Date(y, Math.floor(m / 3) * 3, 1); break;
+      case "6-Months": start = new Date(end.getTime() - 180 * 86400000); break;
+      case "1 Year": start = new Date(end.getTime() - 365 * 86400000); break;
+      default: start = new Date(y, m, 1); break;
+    }
+    const len = end.getTime() - start.getTime();
+    return { start, end, prevStart: new Date(start.getTime() - len) };
+  }, [period]);
 
   useEffect(() => {
     fetch("/api/other-income?page_size=500")
@@ -97,26 +118,44 @@ export default function AdminDashboard() {
 
   const loading = loadingAppts || loadingPatients || loadingStaff || loadingInvoices || loadingOtherIncome;
 
-  const { totalRevenue, medicalRevenue, otherRevenue, appointmentsToday, outstandingPayments, patientCount, staffCount } = useMemo(() => {
-    const medRev = (invoicesData || [])
+  const { totalRevenue, medicalRevenue, otherRevenue, newPatients, appointmentsInPeriod, outstandingPayments, staffCount, revenueTrendPct, revenueUp } = useMemo(() => {
+    const allMed = (invoicesData || [])
       .filter((i) => i.status === "paid" || i.status === "partially_paid")
       .reduce((sum, i) => sum + i.total_amount, 0);
-    const othRev = otherIncomeData.reduce((sum, r) => sum + r.amount, 0);
-    const today = new Date().toISOString().split("T")[0];
-    const todayApts = (appointmentsData || []).filter((a) => a.appointment_date?.startsWith(today)).length;
+    const allOth = otherIncomeData.reduce((sum, r) => sum + r.amount, 0);
+    const { start, end, prevStart } = periodBounds;
+    const inRange = (d: Date) => d >= start && d < end;
+    const inPrev = (d: Date) => d >= prevStart && d < start;
+
+    const medRev = (invoicesData || [])
+      .filter((i) => (i.status === "paid" || i.status === "partially_paid") && inRange(new Date(i.issue_date)))
+      .reduce((sum, i) => sum + i.total_amount, 0);
+    const othRev = otherIncomeData.filter((r) => inRange(new Date(r.income_date))).reduce((sum, r) => sum + r.amount, 0);
+
+    const prevMed = (invoicesData || [])
+      .filter((i) => (i.status === "paid" || i.status === "partially_paid") && inPrev(new Date(i.issue_date)))
+      .reduce((sum, i) => sum + i.total_amount, 0);
+    const prevOth = otherIncomeData.filter((r) => inPrev(new Date(r.income_date))).reduce((sum, r) => sum + r.amount, 0);
+    const prevTotal = prevMed + prevOth;
+    const curTotal = medRev + othRev;
+
+    const newPatients = (patientsData || []).filter((p) => inRange(new Date(p.created_at))).length;
+    const appointmentsInPeriod = (appointmentsData || []).filter((a) => inRange(new Date(a.appointment_date))).length;
     const outstanding = (invoicesData || [])
-      .filter((i) => i.status === "pending" || i.status === "partially_paid")
+      .filter((i) => (i.status === "pending" || i.status === "partially_paid") && inRange(new Date(i.issue_date)))
       .reduce((sum, i) => sum + (i.total_amount - (i.paid_amount || 0)), 0);
     return {
-      totalRevenue: medRev + othRev,
-      medicalRevenue: medRev,
-      otherRevenue: othRev,
-      appointmentsToday: todayApts,
+      totalRevenue: curTotal,
+      medicalRevenue: allMed,
+      otherRevenue: allOth,
+      newPatients,
+      appointmentsInPeriod,
       outstandingPayments: outstanding,
-      patientCount: patientsData?.length ?? 0,
       staffCount: staffData?.length ?? 0,
+      revenueTrendPct: prevTotal > 0 ? ((curTotal - prevTotal) / prevTotal * 100).toFixed(1) : "0",
+      revenueUp: curTotal >= prevTotal,
     };
-  }, [invoicesData, otherIncomeData, appointmentsData, patientsData, staffData]);
+  }, [invoicesData, otherIncomeData, appointmentsData, patientsData, staffData, periodBounds]);
 
   const revenueBreakdown = useMemo(() => [
     { name: "Medical Services", value: medicalRevenue, color: "#e0a84a" },
@@ -175,11 +214,6 @@ export default function AdminDashboard() {
       .map(([dept, count]) => ({ dept, count }));
   }, [appointmentsData]);
 
-  const monthlyTotal = monthlyRevenue.reduce((s, m) => s + m.medical + m.other, 0);
-  const prevMonthTotal = monthlyRevenue.length >= 2 ? monthlyRevenue[monthlyRevenue.length - 2].medical + monthlyRevenue[monthlyRevenue.length - 2].other : 0;
-  const revenueTrendPct = prevMonthTotal > 0 ? ((monthlyTotal - prevMonthTotal) / prevMonthTotal * 100).toFixed(1) : "0";
-  const revenueUp = monthlyTotal >= prevMonthTotal;
-
   const recentPatients = useMemo(() => {
     if (!patientsData) return [];
     return patientsData.slice(0, 5).map((p) => ({
@@ -219,18 +253,18 @@ export default function AdminDashboard() {
       icon: DollarSign, gradient: "bg-gradient-to-br from-emerald-500 via-emerald-400 to-teal-300",
     },
     {
-      label: "Patients Today", value: loading ? "—" : String(patientCount),
+      label: "New Patients", value: loading ? "—" : String(newPatients),
       trend: `${staffCount} staff on board`, up: true,
       icon: Users, gradient: "bg-gradient-to-br from-blue-500 via-indigo-400 to-violet-300",
     },
     {
-      label: "Appointments Today", value: loading ? "—" : String(appointmentsToday),
-      trend: `${(appointmentsData?.length || 0) - appointmentsToday} other scheduled`, up: appointmentsToday > 0,
+      label: "Appointments", value: loading ? "—" : String(appointmentsInPeriod),
+      trend: `${(appointmentsData?.length || 0) - appointmentsInPeriod} outside period`, up: appointmentsInPeriod > 0,
       icon: Calendar, gradient: "bg-gradient-to-br from-amber-500 via-orange-400 to-rose-300",
     },
     {
       label: "Outstanding Receivables", value: loading ? "—" : formatCurrency(outstandingPayments),
-      trend: `${(invoicesData || []).filter((i) => i.status === "pending").length} unpaid invoices`, up: false,
+      trend: `${(invoicesData || []).filter((i) => (i.status === "pending" || i.status === "partially_paid") && new Date(i.issue_date) >= periodBounds.start).length} unpaid in period`, up: false,
       icon: AlertTriangle, gradient: "bg-gradient-to-br from-red-500 via-rose-400 to-pink-300",
     },
   ];
@@ -254,6 +288,18 @@ export default function AdminDashboard() {
       <div>
         <h1 className="text-2xl font-bold text-white">Dashboard</h1>
         <p className="text-sm text-white/50 mt-1">Welcome back. Here&apos;s your hospital overview.</p>
+      </div>
+
+      <div className="flex items-center gap-3 flex-wrap">
+        <select value={period} onChange={(e) => setPeriod(e.target.value)}
+          className="h-9 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 text-xs text-white/80 focus:outline-none focus:border-[#e0a84a]/40">
+          {PERIODS.map((p) => (
+            <option key={p} value={p} className="bg-[#0d1322]">{p}</option>
+          ))}
+        </select>
+        <p className="text-xs text-white/40">
+          Cards below reflect the {period.toLowerCase()} period
+        </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

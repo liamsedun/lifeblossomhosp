@@ -60,6 +60,16 @@ export default function ReportsPage() {
   const [loadingOtherIncome, setLoadingOtherIncome] = useState(true);
   const loading = aptLoading || patLoading || invLoading || staffLoading || loadingOtherIncome;
 
+  const now = new Date();
+  const [month, setMonth] = useState(
+    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+  );
+
+  const monthLabel = useMemo(() => {
+    const [y, m] = month.split("-").map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+  }, [month]);
+
   useEffect(() => {
     fetch("/api/other-income?page_size=500")
       .then((r) => r.json())
@@ -71,55 +81,42 @@ export default function ReportsPage() {
   }, []);
 
   const kpis = useMemo(() => {
-    const medRev = (invoices || []).filter((i) => i.status === "paid" || i.status === "partially_paid")
+    const [y, m] = month.split("-").map(Number);
+    const start = new Date(y, m - 1, 1);
+    const end = new Date(y, m, 1);
+    const prevStart = new Date(y, m - 2, 1);
+    const inMonth = (d: Date) => d >= start && d < end;
+    const inPrev = (d: Date) => d >= prevStart && d < start;
+
+    const medRev = (invoices || [])
+      .filter((i) => (i.status === "paid" || i.status === "partially_paid") && inMonth(new Date(i.issue_date)))
       .reduce((sum, i) => sum + i.total_amount, 0);
-    const othRev = otherIncomeData.reduce((sum, r) => sum + r.amount, 0);
+    const othRev = otherIncomeData
+      .filter((r) => inMonth(new Date(r.income_date)))
+      .reduce((sum, r) => sum + r.amount, 0);
     const totalRevenue = medRev + othRev;
 
-    const prevMonthRev = (invoices || []).filter((i) => {
-      const d = new Date(i.issue_date);
-      const now = new Date();
-      return d >= new Date(now.getFullYear(), now.getMonth() - 1, 1) && d < new Date(now.getFullYear(), now.getMonth(), 1);
-    }).reduce((sum, i) => sum + (i.status === "paid" || i.status === "partially_paid" ? i.total_amount : 0), 0)
-    + otherIncomeData.filter((r) => {
-      const d = new Date(r.income_date);
-      const now = new Date();
-      return d >= new Date(now.getFullYear(), now.getMonth() - 1, 1) && d < new Date(now.getFullYear(), now.getMonth(), 1);
-    }).reduce((sum, r) => sum + r.amount, 0);
+    const prevMonthRev = (invoices || [])
+      .filter((i) => (i.status === "paid" || i.status === "partially_paid") && inPrev(new Date(i.issue_date)))
+      .reduce((sum, i) => sum + i.total_amount, 0)
+      + otherIncomeData
+        .filter((r) => inPrev(new Date(r.income_date)))
+        .reduce((sum, r) => sum + r.amount, 0);
 
-    const thisMonthRev = (invoices || []).filter((i) => {
-      const d = new Date(i.issue_date);
-      const now = new Date();
-      return d >= new Date(now.getFullYear(), now.getMonth(), 1);
-    }).reduce((sum, i) => sum + (i.status === "paid" || i.status === "partially_paid" ? i.total_amount : 0), 0)
-    + otherIncomeData.filter((r) => {
-      const d = new Date(r.income_date);
-      const now = new Date();
-      return d >= new Date(now.getFullYear(), now.getMonth(), 1);
-    }).reduce((sum, r) => sum + r.amount, 0);
+    const monthApts = (appointments || []).filter((a) => inMonth(new Date(a.appointment_date))).length;
 
-    const monthApts = (appointments || []).filter((a) => {
-      const d = new Date(a.appointment_date);
-      const now = new Date();
-      return d >= new Date(now.getFullYear(), now.getMonth(), 1);
-    }).length;
+    const newPatientsThisMonth = (patients || []).filter((p) => inMonth(new Date(p.created_at))).length;
 
-    const newPatientsThisMonth = (patients || []).filter((p) => {
-      const d = new Date(p.created_at);
-      const now = new Date();
-      return d >= new Date(now.getFullYear(), now.getMonth(), 1);
-    }).length;
-
-    const revTrend = prevMonthRev > 0 ? ((thisMonthRev - prevMonthRev) / prevMonthRev * 100).toFixed(1) : "0";
+    const revTrend = prevMonthRev > 0 ? ((totalRevenue - prevMonthRev) / prevMonthRev * 100).toFixed(1) : "0";
 
     return {
       totalRevenue: formatCurrency(totalRevenue),
-      revenueTrend: `${thisMonthRev >= prevMonthRev ? "+" : ""}${revTrend}%`,
-      revenueUp: thisMonthRev >= prevMonthRev,
+      revenueTrend: `${totalRevenue >= prevMonthRev ? "+" : ""}${revTrend}%`,
+      revenueUp: totalRevenue >= prevMonthRev,
       monthAppointments: monthApts,
       newPatients: newPatientsThisMonth,
     };
-  }, [invoices, appointments, patients, otherIncomeData]);
+  }, [invoices, appointments, patients, otherIncomeData, month]);
 
   const revenueTrendData = useMemo(() => {
     const now = new Date();
@@ -183,6 +180,7 @@ export default function ReportsPage() {
     const rows: string[][] = [
       ["Life Blossom Hospital — Performance Report"],
       ["Generated", new Date().toLocaleString()],
+      ["Period", monthLabel],
       [""],
       ["Metric", "Value"],
       ["Total Revenue", kpis.totalRevenue],
@@ -203,7 +201,7 @@ export default function ReportsPage() {
       ...recentActivity.map((a) => [a.action, a.detail, a.time]),
     ];
     downloadCsv(`hospital-report-${new Date().toISOString().split("T")[0]}.csv`, rows);
-  }, [kpis, revenueTrendData, deptPieData, recentActivity, staff, patients, appointments]);
+  }, [kpis, revenueTrendData, deptPieData, recentActivity, staff, patients, appointments, monthLabel]);
 
   if (loading) {
     return (
@@ -221,7 +219,18 @@ export default function ReportsPage() {
           <h1 className="text-2xl font-bold text-white">Reports</h1>
           <p className="text-sm text-white/50 mt-1">Hospital performance analytics and insights</p>
         </div>
-        <DropdownMenu>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Calendar className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/40 pointer-events-none" />
+            <input
+              type="month"
+              value={month}
+              onChange={(e) => e.target.value && setMonth(e.target.value)}
+              className="h-10 rounded-xl border border-white/[0.08] bg-white/[0.04] pl-9 pr-3 text-sm text-white [color-scheme:dark] focus:outline-none focus:border-[#e0a84a]/40"
+              aria-label="Reporting period"
+            />
+          </div>
+          <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button className="bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] font-semibold border-0 shadow-lg shadow-[#e0a84a]/20">
               <Download className="size-4" />Export Report
@@ -238,6 +247,7 @@ export default function ReportsPage() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+      </div>
       </div>
 
       {/* KPI cards */}

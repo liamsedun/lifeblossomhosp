@@ -76,6 +76,19 @@ html {
   .print\:p-0 {
     padding: 0 !important;
   }
+  /* Neutralise the app's dark backgrounds so printed documents
+     (invoices, receipts) are clean white from top to footer —
+     the dark gradient must not bleed into the empty space below
+     the document content or onto a trailing page. */
+  .bg-gradient-to-br,
+  .bg-gradient-to-r,
+  [class*="from-[#0a0f1a]"],
+  [class*="via-[#0d1322]"],
+  [class*="to-[#0f1a2e]"],
+  [class*="bg-[#0d1322]"],
+  [class*="bg-[#0f1a2e]"] {
+    background: #ffffff !important;
+  }
   * {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
