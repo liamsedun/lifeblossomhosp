@@ -25,6 +25,15 @@ export async function POST(req: NextRequest) {
 
     const targetRole = role || "patient";
 
+    // Only patients may self-register. Doctors, nurses and staff accounts
+    // must be created by super admins/admins/accountants from the admin portal.
+    if (targetRole !== "patient") {
+      return NextResponse.json(
+        { success: false, error: "Only patient accounts can be created via registration. Staff accounts are created by hospital admins." },
+        { status: 403 }
+      );
+    }
+
     // 1. Create auth user in Supabase Auth
     const supabase = createSupabaseClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,

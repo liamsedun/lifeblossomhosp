@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Mail, Lock, User, Phone, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import {
   Card,
   CardContent,
@@ -14,13 +13,6 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-
-const roles = [
-  { value: "patient", label: "Patient" },
-  { value: "doctor", label: "Doctor" },
-  { value: "nurse", label: "Nurse" },
-  { value: "staff", label: "Staff" },
-];
 
 const styles = {
   card: {
@@ -61,7 +53,6 @@ export default function RegisterPage() {
     phone: "",
     password: "",
     confirmPassword: "",
-    role: "",
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -86,7 +77,7 @@ export default function RegisterPage() {
         first_name: firstName,
         last_name: lastName,
         password: form.password,
-        role: form.role || "patient",
+        role: "patient",
       };
       if (form.email) payload.email = form.email;
       if (form.phone) payload.phone = form.phone;
@@ -254,13 +245,13 @@ export default function RegisterPage() {
 
           <div>
             <label style={styles.label} className="block">I am a</label>
-            <Select
-              options={roles}
-              placeholder="Select your role"
-              value={form.role}
-              onChange={update("role")}
-              style={{ background: "#0a1420", border: "1px solid rgba(255,255,255,.08)", color: "#eef1f5", borderRadius: "8px", fontSize: "14px" }}
-            />
+            <div
+              className="flex items-center justify-between h-11 px-4 rounded-lg"
+              style={{ background: "#0a1420", border: "1px solid rgba(255,255,255,.08)", color: "#eef1f5", fontSize: "14px" }}
+            >
+              <span>Patient</span>
+              <CheckCircle className="size-4" style={{ color: "#e0a84a" }} />
+            </div>
           </div>
 
           {error && (
