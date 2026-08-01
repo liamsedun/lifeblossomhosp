@@ -112,7 +112,6 @@ export default function LoginPage() {
               Patient ID
             </TabsTrigger>
           </TabsList>
-
           <TabsContent value="email">
             <form onSubmit={handleSubmit} className="space-y-4 pt-5">
               <div>
@@ -196,11 +195,11 @@ export default function LoginPage() {
           <TabsContent value="patient_id">
             <form onSubmit={handleSubmit} className="space-y-4 pt-5">
               <div>
-                <label style={styles.label} className="block">Patient ID</label>
+                <label style={styles.label} className="block">Patient / Dependant ID</label>
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" style={{ color: "#566173" }} />
                   <Input
-                    placeholder="e.g. PT-0001"
+                    placeholder="e.g. PT-0001 or DEP-0001"
                     value={patientId}
                     onChange={(e) => setPatientId(e.target.value)}
                     className="pl-10 border-0 w-full"
