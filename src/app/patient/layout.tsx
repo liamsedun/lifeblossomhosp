@@ -43,7 +43,7 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
   useEffect(() => {
     let mounted = true;
     const fetchNotifs = () => {
-      fetch("/api/notifications?page_size=20")
+      fetch("/api/notifications?page_size=20&unread_only=true")
         .then((r) => r.json())
         .then((json) => {
           if (!json.success || !mounted) return;
@@ -113,9 +113,16 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
   const markAllRead = async () => {
     const res = await fetch("/api/notifications", { method: "PUT" });
     if (res.ok) {
-      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      setNotifications([]);
       setUnreadCount(0);
     }
+  };
+
+  const dismissNotification = (n: Notification) => {
+    fetch(`/api/notifications/${n.id}`, { method: "DELETE" }).catch(() => {});
+    setNotifications((prev) => prev.filter((x) => x.id !== n.id));
+    setUnreadCount((c) => Math.max(0, c - 1));
+    if (n.link) window.location.href = n.link;
   };
 
   const notificationTime = (sentAt: string) => {
@@ -190,11 +197,9 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
                       notifications.map((n) => (
                         <div
                           key={n.id}
-                          onClick={() => { if (n.link) window.location.href = n.link; }}
+                          onClick={() => dismissNotification(n)}
                           className={cn(
-                            "flex items-start gap-3 px-4 py-3 border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors",
-                            n.link ? "cursor-pointer" : "cursor-default",
-                            !n.is_read && "bg-[#e0a84a]/[0.04]"
+                            "flex items-start gap-3 px-4 py-3 border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors cursor-pointer"
                           )}
                         >
                           <span className="text-lg leading-none mt-0.5 shrink-0">
@@ -207,9 +212,7 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
                             )}
                             <p className="text-[10px] text-white/30 mt-1">{notificationTime(n.sent_at)}</p>
                           </div>
-                          {!n.is_read && (
-                            <span className="w-2 h-2 rounded-full bg-[#e0a84a] shrink-0 mt-1.5" />
-                          )}
+                          <span className="w-2 h-2 rounded-full bg-[#e0a84a] shrink-0 mt-1.5" />
                         </div>
                       ))
                     )}

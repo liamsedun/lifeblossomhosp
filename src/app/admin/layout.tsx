@@ -22,7 +22,6 @@ import {
   LogOut,
   CheckCheck,
   Mail,
-  MailOpen,
   MessageSquare,
 } from "lucide-react";
 import { cn, formatDate, formatTime } from "@/lib/utils";
@@ -48,6 +47,7 @@ interface NotificationItem {
   message: string | null;
   type: string;
   is_read: boolean;
+  link?: string | null;
   created_at: string;
 }
 
@@ -71,7 +71,7 @@ function NotificationDropdown() {
 
   useEffect(() => {
     const fetchNotifs = () =>
-      fetch("/api/notifications?page_size=10")
+      fetch("/api/notifications?page_size=10&unread_only=true")
         .then((r) => r.json())
         .then((json) => {
           if (json.success) {
@@ -88,9 +88,16 @@ function NotificationDropdown() {
   const markAllRead = async () => {
     try {
       await fetch("/api/notifications", { method: "PUT" });
-      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      setNotifications([]);
       setUnreadCount(0);
     } catch {}
+  };
+
+  const dismiss = (n: NotificationItem) => {
+    fetch(`/api/notifications/${n.id}`, { method: "DELETE" }).catch(() => {});
+    setNotifications((prev) => prev.filter((x) => x.id !== n.id));
+    setUnreadCount((c) => Math.max(0, c - 1));
+    if (n.link) window.location.href = n.link;
   };
 
   return (
@@ -117,21 +124,20 @@ function NotificationDropdown() {
           )}
         </div>
         {notifications.length === 0 ? (
-          <div className="px-4 py-8 text-center text-xs text-white/40">No notifications yet</div>
+          <div className="px-4 py-8 text-center text-xs text-white/40">No unread notifications</div>
         ) : (
           notifications.map((n) => (
-            <DropdownMenuItem key={n.id} className={cn(
-              "flex flex-col items-start gap-0.5 px-3 py-2.5 border-b border-white/[0.04] last:border-0 cursor-default",
-              !n.is_read ? "bg-white/[0.03]" : ""
-            )}>
+            <DropdownMenuItem
+              key={n.id}
+              onClick={() => dismiss(n)}
+              className={cn(
+                "flex flex-col items-start gap-0.5 px-3 py-2.5 border-b border-white/[0.04] last:border-0 cursor-pointer bg-white/[0.03]"
+              )}
+            >
               <div className="flex items-start gap-2 w-full">
-                {!n.is_read ? (
-                  <Mail className="size-3.5 mt-0.5 shrink-0 text-[#e0a84a]" />
-                ) : (
-                  <MailOpen className="size-3.5 mt-0.5 shrink-0 text-white/30" />
-                )}
+                <Mail className="size-3.5 mt-0.5 shrink-0 text-[#e0a84a]" />
                 <div className="flex-1 min-w-0">
-                  <p className={cn("text-xs leading-tight", !n.is_read ? "text-white font-medium" : "text-white/60")}>
+                  <p className="text-xs leading-tight text-white font-medium">
                     {n.title}
                   </p>
                   {n.message && (
