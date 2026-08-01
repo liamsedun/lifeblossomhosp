@@ -210,7 +210,7 @@ export default function ExpensesPage() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={exportCsv}
-            className="border-white/[0.08] text-white/70 hover:bg-white/[0.06] hover:text-white h-9">
+            className="bg-white text-black border-border hover:bg-gray-100 h-9">
             <Download className="size-4 mr-1" />Export
           </Button>
           <Button onClick={() => { setEditItem(null); setForm({ ...emptyForm, expense_date: new Date().toISOString().split("T")[0] }); setShowAdd(true); }}
