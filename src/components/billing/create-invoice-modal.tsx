@@ -337,7 +337,7 @@ export default function CreateInvoiceModal({ open, onClose, onSuccess }: Props) 
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" size="sm" onClick={() => setShowNewPatient(false)}
-                  className="h-7 text-xs border-white/[0.08] text-white/70 hover:text-white hover:bg-white/[0.06]">
+                  className="h-7 text-xs bg-white text-black border-border hover:bg-gray-100">
                   Cancel
                 </Button>
                 <Button size="sm" onClick={createPatient} disabled={npCreating || !npFirstName.trim() || !npLastName.trim()}
@@ -512,7 +512,7 @@ export default function CreateInvoiceModal({ open, onClose, onSuccess }: Props) 
 
         <DialogFooter className="mt-4 gap-2">
           <Button variant="outline" onClick={handleClose} disabled={submitting}
-            className="border-white/[0.08] text-white/70 hover:bg-white/[0.06] hover:text-white">
+            className="bg-white text-black border-border hover:bg-gray-100">
             Cancel
           </Button>
           <Button

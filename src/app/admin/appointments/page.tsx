@@ -262,7 +262,7 @@ export default function AppointmentsPage() {
             {createError && <div className="rounded-xl bg-rose-500/10 border border-rose-500/20 px-3 py-2 text-sm text-rose-400">{createError}</div>}
             <DialogFooter>
               <DialogClose asChild>
-                <Button type="button" variant="outline" className="border-white/[0.08] text-white/70 hover:bg-white/[0.06]">Cancel</Button>
+                <Button type="button" variant="outline" className="bg-white text-black border-border hover:bg-gray-100">Cancel</Button>
               </DialogClose>
               <Button type="submit" disabled={creating}
                 className="bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] font-semibold border-0">

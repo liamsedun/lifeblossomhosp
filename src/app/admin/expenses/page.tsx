@@ -366,7 +366,7 @@ export default function ExpensesPage() {
             </div>
             <DialogFooter>
               <DialogClose asChild>
-                <Button type="button" variant="outline" className="border-white/[0.08] text-white/70 hover:bg-white/[0.06]">Cancel</Button>
+                <Button type="button" variant="outline" className="bg-white text-black border-border hover:bg-gray-100">Cancel</Button>
               </DialogClose>
               <Button type="submit" disabled={saving}
                 className="bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] font-semibold border-0 shadow-lg shadow-[#e0a84a]/20">
@@ -387,7 +387,7 @@ export default function ExpensesPage() {
           </p>
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline" className="border-white/[0.08] text-white/70 hover:bg-white/[0.06]">Cancel</Button>
+              <Button type="button" variant="outline" className="bg-white text-black border-border hover:bg-gray-100">Cancel</Button>
             </DialogClose>
             <Button type="button" onClick={handleDelete} disabled={deleting}
               className="bg-gradient-to-r from-rose-500 to-pink-500 text-white border-0 shadow-lg shadow-rose-500/20">

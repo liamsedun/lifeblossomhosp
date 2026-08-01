@@ -328,7 +328,7 @@ export default function PatientsPage() {
                 </div>
                 <DialogFooter className="mt-4 pt-4 border-t border-white/[0.06]">
                   <DialogClose asChild>
-                    <Button variant="outline" className="border-white/[0.08] text-white/70 hover:bg-white/[0.06]">Close</Button>
+                    <Button variant="outline" className="bg-white text-black border-border hover:bg-gray-100">Close</Button>
                   </DialogClose>
                   <Button onClick={() => { if (selectedPatient) openEdit(selectedPatient); setSelectedPatient(null); }}
                     className="bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] font-semibold border-0">
@@ -341,7 +341,7 @@ export default function PatientsPage() {
                 <DoctorNotesSection patientId={selectedPatient.id} />
                 <DialogFooter className="mt-4 pt-4 border-t border-white/[0.06]">
                   <DialogClose asChild>
-                    <Button variant="outline" className="border-white/[0.08] text-white/70 hover:bg-white/[0.06]">Close</Button>
+                    <Button variant="outline" className="bg-white text-black border-border hover:bg-gray-100">Close</Button>
                   </DialogClose>
                 </DialogFooter>
               </TabsContent>
@@ -464,7 +464,7 @@ export default function PatientsPage() {
             {formError && <div className="rounded-xl bg-rose-500/10 border border-rose-500/20 px-3 py-2 text-sm text-rose-400">{formError}</div>}
             <DialogFooter>
               <DialogClose asChild>
-                <Button type="button" variant="outline" className="border-white/[0.08] text-white/70 hover:bg-white/[0.06]">Cancel</Button>
+                <Button type="button" variant="outline" className="bg-white text-black border-border hover:bg-gray-100">Cancel</Button>
               </DialogClose>
               <Button type="submit" disabled={creating}
                 className="bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] font-semibold border-0">
@@ -577,7 +577,7 @@ export default function PatientsPage() {
             {formError && <div className="rounded-xl bg-rose-500/10 border border-rose-500/20 px-3 py-2 text-sm text-rose-400">{formError}</div>}
             <DialogFooter>
               <DialogClose asChild>
-                <Button type="button" variant="outline" className="border-white/[0.08] text-white/70 hover:bg-white/[0.06]">Cancel</Button>
+                <Button type="button" variant="outline" className="bg-white text-black border-border hover:bg-gray-100">Cancel</Button>
               </DialogClose>
               <Button type="submit" disabled={saving}
                 className="bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] font-semibold border-0">
@@ -601,7 +601,7 @@ export default function PatientsPage() {
           </p>
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline" className="border-white/[0.08] text-white/70 hover:bg-white/[0.06]">Cancel</Button>
+              <Button type="button" variant="outline" className="bg-white text-black border-border hover:bg-gray-100">Cancel</Button>
             </DialogClose>
             <Button type="button" variant="destructive" onClick={handleDelete} disabled={deleting}
               className="bg-gradient-to-r from-rose-500 to-pink-500 text-white border-0">

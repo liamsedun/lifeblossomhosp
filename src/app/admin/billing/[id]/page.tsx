@@ -131,7 +131,7 @@ function RecordPaymentDialog({
         </div>
         <DialogFooter className="mt-4">
           <Button variant="outline" onClick={onClose} disabled={submitting}
-            className="border-white/[0.08] text-white/70 hover:bg-white/[0.06] hover:text-white">
+            className="bg-white text-black border-border hover:bg-gray-100">
             Cancel
           </Button>
           <Button onClick={handleSubmit} disabled={submitting || !amount || parseFloat(amount) <= 0}

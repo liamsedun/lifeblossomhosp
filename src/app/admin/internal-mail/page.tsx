@@ -462,7 +462,7 @@ export default function InternalMailPage() {
 
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="outline" onClick={() => { setActiveTab("inbox"); setSendError(""); }}
-                  className="border-white/[0.08] text-white/70 hover:text-white hover:bg-white/[0.06]">
+                  className="bg-white text-black border-border hover:bg-gray-100">
                   Cancel
                 </Button>
                 <Button onClick={handleSend} disabled={sending || !subject.trim() || !body.trim()}
@@ -516,7 +516,7 @@ export default function InternalMailPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDetailOpen(false)}
-              className="border-white/[0.08] text-white/70 hover:text-white hover:bg-white/[0.06]">
+              className="bg-white text-black border-border hover:bg-gray-100">
               Close
             </Button>
           </DialogFooter>

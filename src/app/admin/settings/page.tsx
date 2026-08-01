@@ -547,7 +547,7 @@ function AddBankAccountDialog({ disabled, onSaved }: { disabled: boolean; onSave
           <BankAccountDialogBody form={form} setForm={setForm} error={error} />
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline" className="border-border text-foreground hover:bg-muted">
+              <Button type="button" variant="outline" className="bg-white text-black border-border hover:bg-gray-100">
                 Cancel
               </Button>
             </DialogClose>
@@ -626,7 +626,7 @@ function EditBankAccountDialog({ account, onSaved }: { account: BankAccount; onS
           <BankAccountDialogBody form={form} setForm={setForm} error={error} />
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline" className="border-border text-foreground hover:bg-muted">
+              <Button type="button" variant="outline" className="bg-white text-black border-border hover:bg-gray-100">
                 Cancel
               </Button>
             </DialogClose>
@@ -679,7 +679,7 @@ function DeleteBankAccountButton({
         </p>
         <DialogFooter>
           <DialogClose asChild>
-            <Button type="button" variant="outline" className="border-border text-foreground hover:bg-muted">
+            <Button type="button" variant="outline" className="bg-white text-black border-border hover:bg-gray-100">
               Cancel
             </Button>
           </DialogClose>
@@ -910,7 +910,7 @@ function ResetPasswordDialog({ userId, userName }: { userId: string; userName: s
           )}
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline" className="border-border text-foreground hover:bg-muted">
+              <Button type="button" variant="outline" className="bg-white text-black border-border hover:bg-gray-100">
                 Cancel
               </Button>
             </DialogClose>
@@ -1089,7 +1089,7 @@ function AddDoctorDialog({ onSaved }: { onSaved: () => void }) {
           )}
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline" className="border-border text-foreground hover:bg-muted">
+              <Button type="button" variant="outline" className="bg-white text-black border-border hover:bg-gray-100">
                 Cancel
               </Button>
             </DialogClose>
@@ -1279,7 +1279,7 @@ function EditDoctorDialog({
           )}
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline" className="border-border text-foreground hover:bg-muted">
+              <Button type="button" variant="outline" className="bg-white text-black border-border hover:bg-gray-100">
                 Cancel
               </Button>
             </DialogClose>
@@ -1337,7 +1337,7 @@ function DeleteDoctorButton({
         </p>
         <DialogFooter>
           <DialogClose asChild>
-            <Button type="button" variant="outline" className="border-border text-foreground hover:bg-muted">
+            <Button type="button" variant="outline" className="bg-white text-black border-border hover:bg-gray-100">
               Cancel
             </Button>
           </DialogClose>

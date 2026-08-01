@@ -218,7 +218,7 @@ export default function AdminProfilePage() {
             <Button
               variant="outline"
               onClick={() => router.back()}
-              className="border-white/[0.08] text-white/70 hover:bg-white/[0.06] hover:text-white h-10"
+              className="bg-white text-black border-border hover:bg-gray-100 h-10"
             >
               Cancel
             </Button>
