@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import {
   Search, Plus, Eye, DollarSign, TrendingUp, Wallet, Receipt,
-  Loader2, CheckCircle, AlertCircle, FileText, Landmark, Clock, X,
+  Loader2, CheckCircle, AlertCircle, FileText, Landmark, Clock, X, Calendar,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -74,16 +74,30 @@ export default function BillingPage() {
   const [pendingPayments, setPendingPayments] = useState<any[]>([]);
   const [pendingLoading, setPendingLoading] = useState(true);
   const [recordCtx, setRecordCtx] = useState<{ invoice?: Invoice; payment?: any } | null>(null);
+  const [cancelCtx, setCancelCtx] = useState<any>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState("");
+
+  const now = new Date();
+  const [month, setMonth] = useState(
+    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+  );
+  const [summary, setSummary] = useState<{
+    collectedRevenue: number;
+    outstanding: number;
+    invoicedTotal: number;
+    invoiceCount: number;
+  } | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
 
   const invoicesData = usePaymentStore((s) => s.invoices);
   const loading = usePaymentStore((s) => s.loading);
-  const totals = usePaymentStore((s) => s.totals);
   const fetchInvoices = usePaymentStore((s) => s.fetchInvoices);
 
   const loadPending = async () => {
     setPendingLoading(true);
     try {
-      const res = await fetch("/api/payments?status=pending&page_size=50");
+      const res = await fetch("/api/payments?status=pending&page_size=100");
       const json = await res.json();
       if (json.success) setPendingPayments(json.data || []);
     } catch {
@@ -93,9 +107,47 @@ export default function BillingPage() {
     }
   };
 
-  useEffect(() => { fetchInvoices(); loadPending(); }, [fetchInvoices]);
+  const loadSummary = async (m: string) => {
+    setSummaryLoading(true);
+    try {
+      const res = await fetch(`/api/billing/summary?month=${m}`);
+      const json = await res.json();
+      if (json.success) setSummary(json.data);
+    } catch {
+      setSummary(null);
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
 
-  const refreshAll = () => { fetchInvoices(); loadPending(); };
+  useEffect(() => { fetchInvoices({ pageSize: 100 }); loadPending(); }, [fetchInvoices]);
+  useEffect(() => { loadSummary(month); }, [month]);
+
+  const refreshAll = () => { fetchInvoices({ pageSize: 100 }); loadPending(); loadSummary(month); };
+
+  const handleCancel = async () => {
+    if (!cancelCtx) return;
+    setCancelling(true);
+    setCancelError("");
+    try {
+      const res = await fetch("/api/payments/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pending_payment_id: cancelCtx.id }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setCancelCtx(null);
+        loadPending();
+      } else {
+        setCancelError(json.error || "Failed to cancel declaration");
+      }
+    } catch {
+      setCancelError("Network error");
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   const overdueInvoices = useMemo(() => {
     if (!invoicesData) return [];
@@ -129,11 +181,16 @@ export default function BillingPage() {
       });
   }, [invoicesData]);
 
+  const monthLabel = useMemo(() => {
+    const [y, m] = month.split("-").map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+  }, [month]);
+
   const summaryCards = [
-    { label: "Collected Revenue", value: loading ? "—" : formatCurrency(totals.totalRevenue), icon: TrendingUp, gradient: "bg-gradient-to-br from-emerald-500 via-emerald-400 to-teal-300" },
-    { label: "Outstanding", value: loading ? "—" : formatCurrency(totals.outstandingAmount), icon: Wallet, gradient: "bg-gradient-to-br from-amber-500 via-orange-400 to-rose-300" },
-    { label: "This Month", value: loading ? "—" : formatCurrency(totals.paidThisMonth), icon: DollarSign, gradient: "bg-gradient-to-br from-blue-500 via-indigo-400 to-violet-300" },
-    { label: "Total Invoices", value: loading ? "—" : String(invoices?.length ?? 0), icon: Receipt, gradient: "bg-gradient-to-br from-purple-500 via-pink-400 to-rose-300" },
+    { label: "Collected Revenue", value: summaryLoading || !summary ? "—" : formatCurrency(summary.collectedRevenue), icon: TrendingUp, gradient: "bg-gradient-to-br from-emerald-500 via-emerald-400 to-teal-300" },
+    { label: "Outstanding", value: summaryLoading || !summary ? "—" : formatCurrency(summary.outstanding), icon: Wallet, gradient: "bg-gradient-to-br from-amber-500 via-orange-400 to-rose-300" },
+    { label: "This Month", value: summaryLoading || !summary ? "—" : formatCurrency(summary.invoicedTotal), icon: DollarSign, gradient: "bg-gradient-to-br from-blue-500 via-indigo-400 to-violet-300" },
+    { label: "Total Invoices", value: summaryLoading || !summary ? "—" : String(summary.invoiceCount), icon: Receipt, gradient: "bg-gradient-to-br from-purple-500 via-pink-400 to-rose-300" },
   ];
 
   const filtered = invoices.filter(
@@ -161,10 +218,22 @@ export default function BillingPage() {
           <h1 className="text-2xl font-bold text-white">Billing</h1>
           <p className="text-sm text-white/50 mt-1">Manage invoices and payments</p>
         </div>
-        <Button onClick={() => setShowCreate(true)}
-          className="bg-[#e0a84a] hover:bg-[#e0a84a]/90 text-[#0a0f1a] font-semibold shadow-lg shadow-[#e0a84a]/20">
-          <Plus className="size-4" />Create Invoice
-        </Button>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="relative">
+            <Calendar className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/40 pointer-events-none" />
+            <input
+              type="month"
+              value={month}
+              onChange={(e) => e.target.value && setMonth(e.target.value)}
+              className="h-10 rounded-xl border border-white/[0.08] bg-white/[0.04] pl-9 pr-3 text-sm text-white [color-scheme:dark] focus:outline-none focus:border-[#e0a84a]/40"
+              aria-label="Reporting period"
+            />
+          </div>
+          <Button onClick={() => setShowCreate(true)}
+            className="bg-[#e0a84a] hover:bg-[#e0a84a]/90 text-[#0a0f1a] font-semibold shadow-lg shadow-[#e0a84a]/20">
+            <Plus className="size-4" />Create Invoice
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -176,6 +245,7 @@ export default function BillingPage() {
                 <div>
                   <p className="text-sm text-white/50">{card.label}</p>
                   <p className="text-xl font-bold text-white mt-1">{card.value}</p>
+                  <p className="text-[10px] text-white/30 mt-0.5">{monthLabel}</p>
                 </div>
                 <div className="flex size-11 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.06] backdrop-blur-sm">
                   <Icon className="size-5 text-white/80" />
@@ -223,12 +293,21 @@ export default function BillingPage() {
                         {new Date(pmt.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                       </p>
                     </div>
-                    <Button
-                      onClick={() => setRecordCtx({ payment: pmt })}
-                      className="h-8 text-xs px-3 bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] font-semibold rounded-xl hover:shadow-lg hover:shadow-[#e0a84a]/20 transition-all border-0 shrink-0"
-                    >
-                      Verify & Record
-                    </Button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        onClick={() => setRecordCtx({ payment: pmt })}
+                        className="h-8 text-xs px-3 bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] font-semibold rounded-xl hover:shadow-lg hover:shadow-[#e0a84a]/20 transition-all border-0"
+                      >
+                        Verify & Record
+                      </Button>
+                      <Button
+                        onClick={() => { setCancelError(""); setCancelCtx(pmt); }}
+                        variant="outline"
+                        className="h-8 text-xs px-3 bg-white text-black font-semibold rounded-xl border border-white/[0.15] hover:bg-gray-100"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
                   </div>
                 );
               })
@@ -337,6 +416,54 @@ export default function BillingPage() {
           onClose={() => setRecordCtx(null)}
           onDone={refreshAll}
         />
+      )}
+
+      {cancelCtx && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => !cancelling && setCancelCtx(null)}>
+          <div
+            className="w-full max-w-sm max-h-[92vh] overflow-y-auto bg-[#0d1322] border border-white/[0.08] rounded-t-3xl sm:rounded-3xl shadow-2xl p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-base font-bold text-white">Cancel declaration?</h3>
+              <button onClick={() => setCancelCtx(null)} disabled={cancelling} className="p-2 rounded-xl hover:bg-white/[0.06] text-white/50">
+                <X className="size-4" />
+              </button>
+            </div>
+            <p className="text-sm text-white/50 leading-relaxed">
+              This will cancel{" "}
+              <span className="text-white font-semibold">
+                ₦{cancelCtx.amount.toLocaleString()}
+              </span>{" "}
+              declared for{" "}
+              <span className="text-white font-semibold">
+                {cancelCtx.invoice?.invoice_number || "multiple invoices"}
+              </span>{" "}
+              (Ref <span className="font-mono text-[#e0a84a]">{cancelCtx.transaction_ref}</span>).
+              The patient will be notified that the payment could not be confirmed.
+            </p>
+            {cancelError && (
+              <div className="mt-3 rounded-xl bg-rose-500/10 border border-rose-500/20 p-3 text-sm text-rose-400">{cancelError}</div>
+            )}
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setCancelCtx(null)}
+                disabled={cancelling}
+                className="h-10 rounded-xl border border-white/[0.12] bg-white/[0.04] text-sm text-white/70 font-medium hover:bg-white/[0.08] disabled:opacity-50"
+              >
+                Keep it
+              </button>
+              <button
+                onClick={handleCancel}
+                disabled={cancelling}
+                className="h-10 rounded-xl bg-white text-black text-sm font-semibold border border-white/[0.15] hover:bg-gray-100 disabled:opacity-50 inline-flex items-center justify-center gap-2"
+              >
+                {cancelling ? <Loader2 className="size-4 animate-spin" /> : <X className="size-4" />}
+                {cancelling ? "Cancelling..." : "Cancel declaration"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

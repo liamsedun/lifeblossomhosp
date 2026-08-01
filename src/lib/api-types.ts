@@ -10,8 +10,8 @@ export type PrescriptionStatus = "active" | "completed" | "cancelled";
 export type MedicationRoute = "oral" | "iv" | "intramuscular" | "topical" | "sublingual" | "inhalation" | "rectal";
 export type InvoiceStatus = "draft" | "pending" | "paid" | "partially_paid" | "cancelled" | "refunded";
 export type PaymentMethod = "cash" | "card" | "transfer" | "insurance" | "mobile_money";
-export type PaymentStatus = "pending" | "completed" | "failed" | "refunded";
-export type NotificationType = "appointment_reminder" | "payment_due" | "lab_result" | "prescription_refill" | "general" | "chat_message";
+export type PaymentStatus = "pending" | "completed" | "failed" | "refunded" | "cancelled";
+export type NotificationType = "appointment_reminder" | "payment_due" | "lab_result" | "prescription_refill" | "general" | "chat_message" | "payment_declared" | "payment_confirmed" | "payment_cancelled";
 export type AuditAction = "create" | "update" | "delete" | "view" | "login" | "logout";
 
 // --- Organization ---

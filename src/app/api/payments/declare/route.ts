@@ -9,21 +9,23 @@ import { notifyUsers } from "@/lib/notify";
 /**
  * POST /api/payments/declare
  *
- * Patient marks a bank transfer as completed for an invoice.
- * Creates a pending payment row and pushes a notification to every
- * admin / super admin / accountant in the org so they can confirm it
- * in Billing → Record Payment.
+ * Patient marks a bank transfer (or POS payment) as completed for an invoice,
+ * entering the exact amount they paid (may be partial). Creates a pending
+ * payment row and pushes a notification to every admin / super admin /
+ * accountant in the org so they can confirm it in Billing → Record Payment.
  *
- * Body: { invoice_id, amount } (amount in Naira)
+ * Body: { invoice_id, amount, payment_method? } (amount in Naira;
+ * payment_method: "bank_transfer" | "pos", defaults to bank_transfer)
  */
 export const POST = withAuth(async (req, supabase, authUserId) => {
   const { data: caller } = await supabase.from("users").select("role, first_name, last_name").eq("id", authUserId).single();
   if (caller?.role !== "patient") return err("Only patients can declare a transfer", 403);
 
-  const body = await parseBody<{ invoice_id?: string; amount?: number }>(req);
+  const body = await parseBody<{ invoice_id?: string; amount?: number; payment_method?: string }>(req);
   if (!body.invoice_id || !body.amount || body.amount <= 0) {
     throw new ValidationError("invoice_id and a positive amount are required");
   }
+  const method = body.payment_method === "pos" ? "pos" : "bank_transfer";
 
   const patientId = await resolvePatientId(supabase, authUserId);
   if (!patientId) return err("Patient profile not found", 404);
@@ -67,10 +69,10 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
       invoice_id: body.invoice_id,
       patient_id: patientId,
       amount: body.amount,
-      payment_method: "bank_transfer",
+      payment_method: method,
       status: "pending",
       transaction_ref: reference,
-      notes: "Declared by patient — awaiting staff confirmation",
+      notes: `Declared by patient (${method}) — awaiting staff confirmation`,
       created_by: authUserId,
     })
     .select()
@@ -89,12 +91,13 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   const patientName = caller.first_name
     ? `${caller.first_name} ${caller.last_name || ""}`.trim()
     : "A patient";
+  const methodLabel = method === "pos" ? "POS payment" : "bank transfer";
   await notifyUsers(svc, {
     orgId,
     userIds: staffIds,
     type: "payment_declared",
-    title: "New bank transfer declared",
-    message: `${patientName} declared ₦${body.amount.toLocaleString()} for invoice ${invoice.invoice_number} — confirm in Billing → Record Payment.`,
+    title: "New payment declared",
+    message: `${patientName} declared ₦${body.amount.toLocaleString()} (${methodLabel}) for invoice ${invoice.invoice_number} — confirm in Billing → Record Payment.`,
     referenceType: "payment",
     referenceId: payment.id,
     url: "/admin/billing",

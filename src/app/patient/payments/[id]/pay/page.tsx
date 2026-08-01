@@ -83,6 +83,11 @@ export default function PayInvoicePage() {
   const [showPos, setShowPos] = useState(false);
   const [declaring, setDeclaring] = useState(false);
   const [declared, setDeclared] = useState<{ ref: string } | null>(null);
+  const [transferAmount, setTransferAmount] = useState("");
+  const [posDeclaring, setPosDeclaring] = useState(false);
+  const [posDeclared, setPosDeclared] = useState<{ ref: string } | null>(null);
+  const [posAmount, setPosAmount] = useState("");
+  const [posError, setPosError] = useState("");
   const [paystackBusy, setPaystackBusy] = useState(false);
   const [paystackNotice, setPaystackNotice] = useState("");
   const [error, setError] = useState("");
@@ -172,13 +177,19 @@ export default function PayInvoicePage() {
   };
 
   const handleDeclare = async () => {
+    const amt = Number(transferAmount);
+    if (!amt || amt <= 0) { setError("Enter the amount you transferred"); return; }
+    if (amt > outstanding) {
+      setError(`Amount exceeds the outstanding balance of ₦${outstanding.toLocaleString()}`);
+      return;
+    }
     setDeclaring(true);
     setError("");
     try {
       const res = await fetch("/api/payments/declare", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ invoice_id: invoiceId, amount: outstanding }),
+        body: JSON.stringify({ invoice_id: invoiceId, amount: amt }),
       });
       const json = await res.json();
       if (json.success) {
@@ -191,6 +202,48 @@ export default function PayInvoicePage() {
     } finally {
       setDeclaring(false);
     }
+  };
+
+  const handlePosDeclare = async () => {
+    const amt = Number(posAmount);
+    if (!amt || amt <= 0) { setPosError("Enter the amount you paid"); return; }
+    if (amt > outstanding) {
+      setPosError(`Amount exceeds the outstanding balance of ₦${outstanding.toLocaleString()}`);
+      return;
+    }
+    setPosDeclaring(true);
+    setPosError("");
+    try {
+      const res = await fetch("/api/payments/declare", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invoice_id: invoiceId, amount: amt, payment_method: "pos" }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setPosDeclared({ ref: json.data.transaction_ref || "" });
+      } else {
+        setPosError(json.error || "Failed to declare the payment");
+      }
+    } catch {
+      setPosError("Network error");
+    } finally {
+      setPosDeclaring(false);
+    }
+  };
+
+  const openBank = () => {
+    setError("");
+    setDeclared(null);
+    setTransferAmount(String(outstanding));
+    setShowBank(true);
+  };
+
+  const openPos = () => {
+    setPosError("");
+    setPosDeclared(null);
+    setPosAmount(String(outstanding));
+    setShowPos(true);
   };
 
   const methods = [
@@ -208,7 +261,7 @@ export default function PayInvoicePage() {
       desc: "Transfer to the hospital's bank account and declare it here.",
       icon: Landmark,
       accent: "from-emerald-500 to-teal-600",
-      action: () => setShowBank(true),
+      action: openBank,
     },
     {
       key: "pos",
@@ -216,7 +269,7 @@ export default function PayInvoicePage() {
       desc: "Pay with your card at the hospital counter via POS terminal.",
       icon: Smartphone,
       accent: "from-violet-500 to-purple-600",
-      action: () => setShowPos(true),
+      action: openPos,
     },
   ];
 
@@ -322,8 +375,28 @@ export default function PayInvoicePage() {
         ) : (
           <>
             <div className="rounded-xl bg-[#e0a84a]/[0.06] border border-[#e0a84a]/20 px-3 py-2.5 text-xs text-[#e0a84a] mb-4">
-              Amount to pay: <span className="font-bold">₦{outstanding.toLocaleString()}</span> for {invoice.invoice_number}
+              Outstanding balance: <span className="font-bold">₦{outstanding.toLocaleString()}</span> for {invoice.invoice_number}
             </div>
+
+            <label className="block text-xs font-medium text-white/50 mb-1.5">
+              Amount transferred (₦)
+            </label>
+            <input
+              type="number"
+              min="0"
+              max={outstanding}
+              step="0.01"
+              value={transferAmount}
+              onChange={(e) => {
+                setTransferAmount(e.target.value);
+                setError("");
+              }}
+              placeholder="Enter the exact amount you sent"
+              className="w-full h-11 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#e0a84a]/40"
+            />
+            <p className="text-[10px] text-white/30 mt-1 mb-4">
+              Enter exactly what you transferred — partial payments are fine.
+            </p>
 
             {accounts.length === 0 ? (
               <div className="rounded-xl bg-amber-500/[0.06] border border-amber-500/20 p-4 text-center">
@@ -377,38 +450,92 @@ export default function PayInvoicePage() {
           </button>
         </div>
 
-        <div className="mt-4 rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4 space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center shrink-0">
-              <Building2 className="w-5 h-5 text-violet-400" />
+        {posDeclared ? (
+          <div className="mt-4 text-center py-6">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center mx-auto mb-3">
+              <CheckCircle2 className="w-7 h-7 text-emerald-400" />
             </div>
-            <div>
-              <p className="text-sm font-bold text-white">{org.name}</p>
-              <p className="text-xs text-white/40">{invoice.invoice_number} · ₦{outstanding.toLocaleString()}</p>
-            </div>
+            <h4 className="text-base font-bold text-white">Payment declared</h4>
+            <p className="text-xs text-white/50 mt-1 max-w-[280px] mx-auto">
+              Reference <span className="text-[#e0a84a] font-mono font-semibold">{posDeclared.ref}</span> — our
+              staff will confirm your POS payment shortly.
+            </p>
+            <button
+              onClick={() => { setShowPos(false); setPosDeclared(null); }}
+              className="mt-5 w-full h-11 bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] text-sm font-semibold rounded-xl"
+            >
+              Done
+            </button>
           </div>
-          <p className="text-xs text-white/60 leading-relaxed">
-            Visit the hospital reception or billing desk and pay with your card via our POS terminal.
-            Our staff will confirm your payment and your account will be settled right away.
-          </p>
-          {org.address && (
-            <div className="flex items-center gap-2 text-xs text-white/50">
-              <MapPin className="w-3.5 h-3.5 text-[#e0a84a]" /> {org.address}
+        ) : (
+          <>
+            <div className="mt-4 rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center shrink-0">
+                  <Building2 className="w-5 h-5 text-violet-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white">{org.name}</p>
+                  <p className="text-xs text-white/40">{invoice.invoice_number} · ₦{outstanding.toLocaleString()} outstanding</p>
+                </div>
+              </div>
+              <p className="text-xs text-white/60 leading-relaxed">
+                Visit the hospital reception or billing desk and pay with your card via our POS terminal.
+                Enter the amount you paid below so our staff can confirm your payment.
+              </p>
+              {org.address && (
+                <div className="flex items-center gap-2 text-xs text-white/50">
+                  <MapPin className="w-3.5 h-3.5 text-[#e0a84a]" /> {org.address}
+                </div>
+              )}
+              {org.phone && (
+                <div className="flex items-center gap-2 text-xs text-white/50">
+                  <Phone className="w-3.5 h-3.5 text-[#e0a84a]" /> {org.phone}
+                </div>
+              )}
             </div>
-          )}
-          {org.phone && (
-            <div className="flex items-center gap-2 text-xs text-white/50">
-              <Phone className="w-3.5 h-3.5 text-[#e0a84a]" /> {org.phone}
-            </div>
-          )}
-        </div>
 
-        <button
-          onClick={() => { setShowPos(false); router.push("/patient/payments"); }}
-          className="mt-4 w-full h-11 bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] text-sm font-semibold rounded-xl"
-        >
-          Got it
-        </button>
+            <label className="block text-xs font-medium text-white/50 mt-4 mb-1.5">
+              Amount paid (₦)
+            </label>
+            <input
+              type="number"
+              min="0"
+              max={outstanding}
+              step="0.01"
+              value={posAmount}
+              onChange={(e) => {
+                setPosAmount(e.target.value);
+                setPosError("");
+              }}
+              placeholder="Enter the exact amount you paid"
+              className="w-full h-11 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#e0a84a]/40"
+            />
+            <p className="text-[10px] text-white/30 mt-1">
+              Enter exactly what you paid — partial payments are fine.
+            </p>
+
+            {posError && (
+              <div className="mt-3 rounded-xl bg-rose-500/10 border border-rose-500/20 p-3 text-sm text-rose-400">{posError}</div>
+            )}
+
+            <button
+              onClick={handlePosDeclare}
+              disabled={posDeclaring}
+              className="mt-4 w-full h-11 bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] text-sm font-semibold rounded-xl shadow-lg shadow-[#e0a84a]/20 disabled:opacity-50 inline-flex items-center justify-center gap-2"
+            >
+              {posDeclaring ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+              {posDeclaring ? "Declaring..." : "I've paid with POS"}
+            </button>
+
+            <button
+              onClick={() => { setShowPos(false); router.push("/patient/payments"); }}
+              className="mt-2 w-full h-10 rounded-xl border border-white/[0.1] text-sm text-white/50 hover:text-white transition-colors"
+            >
+              Not yet — back to invoices
+            </button>
+          </>
+        )}
       </Modal>
 
       {/* ── Paystack notice ── */}
