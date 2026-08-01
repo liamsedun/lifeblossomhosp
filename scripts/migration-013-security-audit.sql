@@ -5,7 +5,9 @@
 --   2. security_events table (anomaly detection)
 --   3. log_audit() trigger function (DB-level auto-logging)
 --   4. AFTER INSERT/UPDATE/DELETE triggers on sensitive tables:
---        medical_records, dependants, appointments, invoices, payments, patients
+--        medical_records, appointments, invoices, payments, patients
+--      (dependant changes live in the patients table and are exposed as
+--      entity 'dependants' by the log_audit() function itself)
 --   5. RLS for security_events (admin/super_admin read-only, append-only)
 --   6. audit_logs RLS hardened: SELECT-only for admin/super_admin (prevents
 --      tampering — inserts happen only via triggers/service role)
@@ -118,11 +120,6 @@ $$;
 DROP TRIGGER IF EXISTS audit_medical_records ON medical_records;
 CREATE TRIGGER audit_medical_records
   AFTER INSERT OR UPDATE OR DELETE ON medical_records
-  FOR EACH ROW EXECUTE FUNCTION public.log_audit();
-
-DROP TRIGGER IF EXISTS audit_dependants ON dependants;
-CREATE TRIGGER audit_dependants
-  AFTER INSERT OR UPDATE OR DELETE ON dependants
   FOR EACH ROW EXECUTE FUNCTION public.log_audit();
 
 DROP TRIGGER IF EXISTS audit_appointments ON appointments;
