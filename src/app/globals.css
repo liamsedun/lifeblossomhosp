@@ -58,6 +58,10 @@ html {
 
 /* ─── Print styles (medical invoices, receipts) ─── */
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
   body {
     background: #ffffff !important;
   }

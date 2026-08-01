@@ -181,7 +181,7 @@ export default function AdminLayout({
         )}
       >
         <div className="flex h-16 items-center border-b border-white/[0.06] px-6">
-          <Logo variant="inline" iconSize={28} />
+          <Logo variant="inline" iconSize={28} textClass="text-white" subtitleClass="text-white/80" />
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">

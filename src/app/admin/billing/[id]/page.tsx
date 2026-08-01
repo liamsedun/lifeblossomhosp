@@ -393,7 +393,7 @@ export default function AdminInvoiceDetailPage({ params }: { params: Promise<{ i
         if (json.success) {
           setOrg({
             name: json.data.name || DEFAULT_ORG.name,
-            logo_url: json.data.logo_url || null,
+            logo_url: json.data.logo_url || DEFAULT_ORG.logo_url,
             address: json.data.address || "",
             phone: json.data.phone || "",
             email: json.data.email || "",
@@ -457,7 +457,7 @@ export default function AdminInvoiceDetailPage({ params }: { params: Promise<{ i
         </Link>
         <div className="flex gap-1.5">
           {isActive && (
-            <Button size="sm" variant="outline" className="h-8 text-xs border-white/[0.08] text-white/70 hover:bg-white/[0.06] hover:text-white"
+            <Button size="sm" variant="outline" className="h-8 text-xs text-emerald-600 border-emerald-500/40 hover:bg-emerald-500/10 hover:text-emerald-700"
               onClick={() => setShowPayment(true)}>
               <DollarSign className="w-3.5 h-3.5 mr-1" />Record Payment
             </Button>
@@ -469,7 +469,7 @@ export default function AdminInvoiceDetailPage({ params }: { params: Promise<{ i
               Void
             </Button>
           )}
-          <Button size="sm" variant="outline" className="h-8 text-xs border-white/[0.08] text-white/70 hover:bg-white/[0.06] hover:text-white"
+          <Button size="sm" variant="outline" className="h-8 text-xs text-black border-gray-300 hover:bg-gray-100"
             onClick={() => window.print()}>
             <Printer className="w-3.5 h-3.5 mr-1" />Print
           </Button>

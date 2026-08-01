@@ -106,7 +106,7 @@ export default function AdminDashboard() {
     const todayApts = (appointmentsData || []).filter((a) => a.appointment_date?.startsWith(today)).length;
     const outstanding = (invoicesData || [])
       .filter((i) => i.status === "pending" || i.status === "partially_paid")
-      .reduce((sum, i) => sum + i.total_amount, 0);
+      .reduce((sum, i) => sum + (i.total_amount - (i.paid_amount || 0)), 0);
     return {
       totalRevenue: medRev + othRev,
       medicalRevenue: medRev,
@@ -229,7 +229,7 @@ export default function AdminDashboard() {
       icon: Calendar, gradient: "bg-gradient-to-br from-amber-500 via-orange-400 to-rose-300",
     },
     {
-      label: "Outstanding Payments", value: loading ? "—" : formatCurrency(outstandingPayments),
+      label: "Outstanding Receivables", value: loading ? "—" : formatCurrency(outstandingPayments),
       trend: `${(invoicesData || []).filter((i) => i.status === "pending").length} unpaid invoices`, up: false,
       icon: AlertTriangle, gradient: "bg-gradient-to-br from-red-500 via-rose-400 to-pink-300",
     },
