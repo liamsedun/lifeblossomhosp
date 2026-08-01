@@ -48,6 +48,15 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   // Get user's org_id for metadata
   const orgId = await resolveOrgId(supabase, authUserId);
 
+  // Paystack is a placeholder until the real secret key is provided
+  const paystackKey = process.env.PAYSTACK_SECRET_KEY || "";
+  if (!paystackKey || paystackKey.startsWith("placeholder") || paystackKey.includes("PAYSTACK_SECRET_KEY")) {
+    return ok({
+      placeholder: true,
+      message: "Online card payment is coming soon — please use Bank Transfer or POS for now.",
+    });
+  }
+
   // Initialize Paystack transaction
   const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/payments/callback`;
   const result = await initializeTransaction({

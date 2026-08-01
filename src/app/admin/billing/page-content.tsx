@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import {
   Search, Plus, Eye, DollarSign, TrendingUp, Wallet, Receipt,
-  Loader2, CheckCircle, AlertCircle, FileText,
+  Loader2, CheckCircle, AlertCircle, FileText, Landmark, Clock, X,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -71,11 +71,31 @@ function GradientCard({ children, gradient, className }: { children: React.React
 export default function BillingPage() {
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  const [pendingPayments, setPendingPayments] = useState<any[]>([]);
+  const [pendingLoading, setPendingLoading] = useState(true);
+  const [recordCtx, setRecordCtx] = useState<{ invoice?: Invoice; payment?: any } | null>(null);
 
   const invoicesData = usePaymentStore((s) => s.invoices);
   const loading = usePaymentStore((s) => s.loading);
   const totals = usePaymentStore((s) => s.totals);
   const fetchInvoices = usePaymentStore((s) => s.fetchInvoices);
+
+  const loadPending = async () => {
+    setPendingLoading(true);
+    try {
+      const res = await fetch("/api/payments?status=pending&page_size=50");
+      const json = await res.json();
+      if (json.success) setPendingPayments(json.data || []);
+    } catch {
+      setPendingPayments([]);
+    } finally {
+      setPendingLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchInvoices(); loadPending(); }, [fetchInvoices]);
+
+  const refreshAll = () => { fetchInvoices(); loadPending(); };
 
   const overdueInvoices = useMemo(() => {
     if (!invoicesData) return [];
@@ -84,8 +104,6 @@ export default function BillingPage() {
       (i) => i.status === "pending" && !!i.due_date && new Date(i.due_date).getTime() < now
     );
   }, [invoicesData]);
-
-  useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
 
   const invoices = useMemo(() => {
     if (!invoicesData) return [];
@@ -168,6 +186,57 @@ export default function BillingPage() {
         })}
       </div>
 
+      {pendingPayments.length > 0 && (
+        <div className="rounded-2xl border border-[#e0a84a]/20 bg-[#e0a84a]/[0.04]">
+          <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Landmark className="size-4 text-[#e0a84a]" />
+              <h3 className="text-sm font-semibold text-white">Pending Bank Transfers</h3>
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#e0a84a]/15 text-[#e0a84a]">
+                {pendingPayments.length}
+              </span>
+            </div>
+            <span className="text-xs text-white/40">Patients waiting for you to verify</span>
+          </div>
+          <div className="divide-y divide-white/[0.04]">
+            {pendingLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="size-5 animate-spin text-[#e0a84a]" />
+              </div>
+            ) : (
+              pendingPayments.map((pmt) => {
+                const patientName = pmt.patient?.user
+                  ? `${pmt.patient.user.first_name} ${pmt.patient.user.last_name}`
+                  : "Patient";
+                return (
+                  <div key={pmt.id} className="flex items-center gap-3 px-4 py-3">
+                    <div className="size-9 rounded-xl bg-[#e0a84a]/10 border border-[#e0a84a]/20 flex items-center justify-center shrink-0">
+                      <Clock className="size-4 text-[#e0a84a]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-white truncate">
+                        ₦{pmt.amount.toLocaleString()} · {patientName}
+                      </p>
+                      <p className="text-xs text-white/40 truncate">
+                        {pmt.invoice?.invoice_number || "Multiple invoices"} · Ref{" "}
+                        <span className="font-mono">{pmt.transaction_ref}</span> ·{" "}
+                        {new Date(pmt.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+                    <Button
+                      onClick={() => setRecordCtx({ payment: pmt })}
+                      className="h-8 text-xs px-3 bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] font-semibold rounded-xl hover:shadow-lg hover:shadow-[#e0a84a]/20 transition-all border-0 shrink-0"
+                    >
+                      Verify & Record
+                    </Button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-xl">
         <div className="p-4 border-b border-white/[0.06]">
           <div className="relative max-w-sm">
@@ -227,12 +296,23 @@ export default function BillingPage() {
                           </Badge>
                         </td>
                         <td className="px-5 py-3.5 text-right">
-                          <Link
-                            href={`/admin/billing/${inv.id}`}
-                            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg text-xs text-[#e0a84a] font-medium hover:bg-[#e0a84a]/10 transition-colors"
-                          >
-                            <Eye className="size-3.5" />View
-                          </Link>
+                          <div className="flex items-center justify-end gap-1">
+                            {outstanding > 0 && (
+                              <button
+                                onClick={() => setRecordCtx({ invoice: inv.raw })}
+                                className="inline-flex items-center gap-1 h-8 px-3 rounded-lg text-xs text-emerald-400 font-medium hover:bg-emerald-500/10 transition-colors"
+                                title="Record payment received (POS, cash, transfer…)"
+                              >
+                                <DollarSign className="size-3.5" />Record
+                              </button>
+                            )}
+                            <Link
+                              href={`/admin/billing/${inv.id}`}
+                              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg text-xs text-[#e0a84a] font-medium hover:bg-[#e0a84a]/10 transition-colors"
+                            >
+                              <Eye className="size-3.5" />View
+                            </Link>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -249,6 +329,277 @@ export default function BillingPage() {
         onClose={() => setShowCreate(false)}
         onSuccess={() => fetchInvoices()}
       />
+
+      {recordCtx && (
+        <RecordPaymentModal
+          ctx={recordCtx}
+          invoices={invoicesData || []}
+          onClose={() => setRecordCtx(null)}
+          onDone={refreshAll}
+        />
+      )}
+    </div>
+  );
+}
+
+const METHOD_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "bank_transfer", label: "Bank Transfer" },
+  { value: "pos", label: "POS" },
+  { value: "cash", label: "Cash" },
+  { value: "card", label: "Card (Online)" },
+  { value: "transfer", label: "Transfer" },
+  { value: "insurance", label: "Insurance" },
+  { value: "mobile_money", label: "Mobile Money" },
+];
+
+function patientNameOf(inv: Invoice): string {
+  return inv.patient?.user
+    ? `${inv.patient.user.first_name} ${inv.patient.user.last_name}`
+    : "Patient";
+}
+
+function RecordPaymentModal({ ctx, invoices, onClose, onDone }: {
+  ctx: { invoice?: Invoice; payment?: any };
+  invoices: Invoice[];
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const patientId = ctx.invoice?.patient_id || ctx.payment?.patient_id || "";
+  const defaultAmount =
+    (ctx.payment && ctx.payment.amount) ||
+    (ctx.invoice ? ctx.invoice.total_amount - ctx.invoice.paid_amount : 0) ||
+    "";
+
+  const [amount, setAmount] = useState(defaultAmount || "");
+  const [method, setMethod] = useState(ctx.payment?.payment_method || "bank_transfer");
+  const [ref, setRef] = useState(ctx.payment?.transaction_ref || "");
+  const [notes, setNotes] = useState("");
+  const [alloc, setAlloc] = useState<Record<string, number>>({});
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const patientInvoices = useMemo(() => {
+    const now = new Date().toISOString().slice(0, 10);
+    return (invoices || [])
+      .filter((i) => i.patient_id === patientId && i.status !== "cancelled" && i.status !== "refunded")
+      .filter((i) => {
+        if (ctx.invoice) return i.id === ctx.invoice.id;
+        return (i.total_amount - i.paid_amount) > 0 && (i.status === "pending" || i.status === "partially_paid" || new Date(i.issue_date).toISOString().slice(0, 10) <= now);
+      });
+  }, [invoices, patientId, ctx.invoice]);
+
+  const allocSum = useMemo(
+    () => Object.entries(alloc).reduce((s, [id, v]) => (selected.has(id) ? s + v : s), 0),
+    [alloc, selected]
+  );
+  const remaining = Number(amount) - allocSum;
+
+  function redistribute(amt: number, sel: Set<string>, current: Record<string, number>) {
+    let rem = amt;
+    const next: Record<string, number> = {};
+    for (const inv of patientInvoices) {
+      if (!sel.has(inv.id)) continue;
+      const outstanding = inv.total_amount - inv.paid_amount;
+      const val = Math.max(0, Math.min(current[inv.id] ?? outstanding, outstanding, rem));
+      next[inv.id] = val;
+      rem -= val;
+    }
+    setAlloc(next);
+  }
+
+  function toggleInvoice(id: string) {
+    setError("");
+    const sel = new Set(selected);
+    if (sel.has(id)) sel.delete(id);
+    else sel.add(id);
+    setSelected(sel);
+    redistribute(Number(amount), sel, alloc);
+  }
+
+  function setInvoiceAmount(id: string, v: number) {
+    const inv = patientInvoices.find((i) => i.id === id);
+    if (!inv) return;
+    const outstanding = inv.total_amount - inv.paid_amount;
+    setAlloc((a) => ({ ...a, [id]: Math.max(0, Math.min(v, outstanding)) }));
+  }
+
+  async function handleSubmit() {
+    setError("");
+    if (!patientId) { setError("Patient not resolved for this payment"); return; }
+    const amt = Number(amount);
+    if (!amt || amt <= 0) { setError("Enter a valid amount"); return; }
+    if (!selected.size) { setError("Select at least one invoice to allocate the payment to"); return; }
+    if (Math.abs(allocSum - amt) > 0.01) {
+      setError(`Allocated (₦${allocSum.toLocaleString()}) must equal the payment amount (₦${amt.toLocaleString()})`);
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/payments/record", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patient_id: patientId,
+          amount: amt,
+          payment_method: method,
+          allocation: Object.entries(alloc)
+            .filter(([id]) => selected.has(id))
+            .map(([invoice_id, a]) => ({ invoice_id, amount: a })),
+          pending_payment_id: ctx.payment?.id,
+          transaction_ref: ref.trim() || undefined,
+          notes: notes.trim() || undefined,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        onDone();
+        onClose();
+      } else {
+        setError(json.error || "Failed to record payment");
+      }
+    } catch {
+      setError("Network error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="w-full max-w-md max-h-[92vh] overflow-y-auto bg-[#0d1322] border border-white/[0.08] rounded-t-3xl sm:rounded-3xl shadow-2xl p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-bold text-white">Record Payment</h3>
+            <p className="text-xs text-white/40">Confirm money received from the patient</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/[0.06] text-white/50">
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-white/50 mb-1">Amount (₦)</label>
+              <input
+                type="number"
+                min="0"
+                value={amount}
+                onChange={(e) => {
+                  setAmount(e.target.value);
+                  redistribute(Number(e.target.value), selected, alloc);
+                }}
+                className="h-10 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#e0a84a]/40"
+                placeholder="0"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-white/50 mb-1">Method</label>
+              <select
+                value={method}
+                onChange={(e) => setMethod(e.target.value)}
+                className="h-10 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 text-sm text-white focus:outline-none focus:border-[#e0a84a]/40 [&>option]:text-black"
+              >
+                {METHOD_OPTIONS.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-white/50 mb-1">Reference (optional)</label>
+              <input
+                value={ref}
+                onChange={(e) => setRef(e.target.value)}
+                className="h-10 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#e0a84a]/40 font-mono"
+                placeholder="TRF-..."
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-white/50 mb-1">Notes (optional)</label>
+              <input
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="h-10 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#e0a84a]/40"
+                placeholder="e.g. transfer from GTB"
+              />
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-medium text-white/50">
+                Allocate to invoices{" "}
+                <span className="text-white/30">({ctx.invoice ? "this invoice" : "pick one or more"})</span>
+              </label>
+              <span className={`text-xs font-semibold ${remaining < -0.01 ? "text-rose-400" : "text-white/40"}`}>
+                ₦{Math.max(0, allocSum).toLocaleString()} allocated
+              </span>
+            </div>
+            {patientInvoices.length === 0 ? (
+              <div className="rounded-xl bg-white/[0.03] border border-white/[0.08] p-4 text-center text-sm text-white/40">
+                No outstanding invoices for this patient.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {patientInvoices.map((inv) => {
+                  const outstanding = inv.total_amount - inv.paid_amount;
+                  const isSel = selected.has(inv.id);
+                  return (
+                    <div
+                      key={inv.id}
+                      className={`flex items-center gap-2 rounded-xl border p-2.5 transition-colors ${
+                        isSel ? "border-[#e0a84a]/40 bg-[#e0a84a]/[0.06]" : "border-white/[0.08] bg-white/[0.02]"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSel}
+                        onChange={() => toggleInvoice(inv.id)}
+                        className="size-4 accent-[#e0a84a]"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-white truncate">{inv.invoice_number}</p>
+                        <p className="text-[10px] text-white/40 truncate">
+                          {inv.items?.[0]?.description || "Service"} · outstanding ₦{outstanding.toLocaleString()}
+                        </p>
+                      </div>
+                      {isSel && (
+                        <input
+                          type="number"
+                          min="0"
+                          max={outstanding}
+                          value={alloc[inv.id] ?? ""}
+                          onChange={(e) => setInvoiceAmount(inv.id, Number(e.target.value))}
+                          className="h-8 w-28 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2 text-xs text-white focus:outline-none focus:border-[#e0a84a]/40"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {error && (
+            <div className="rounded-xl bg-rose-500/10 border border-rose-500/20 p-3 text-sm text-rose-400">{error}</div>
+          )}
+
+          <button
+            onClick={handleSubmit}
+            disabled={saving || patientInvoices.length === 0}
+            className="w-full h-11 bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] text-sm font-semibold rounded-xl shadow-lg shadow-[#e0a84a]/20 disabled:opacity-50 inline-flex items-center justify-center gap-2"
+          >
+            {saving ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle className="size-4" />}
+            {saving ? "Recording..." : "Confirm Payment"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

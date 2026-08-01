@@ -70,15 +70,19 @@ function NotificationDropdown() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    fetch("/api/notifications?page_size=10")
-      .then((r) => r.json())
-      .then((json) => {
-        if (json.success) {
-          setNotifications(json.data || []);
-          setUnreadCount((json.data || []).filter((n: NotificationItem) => !n.is_read).length);
-        }
-      })
-      .catch(() => {});
+    const fetchNotifs = () =>
+      fetch("/api/notifications?page_size=10")
+        .then((r) => r.json())
+        .then((json) => {
+          if (json.success) {
+            setNotifications(json.data || []);
+            setUnreadCount((json.data || []).filter((n: NotificationItem) => !n.is_read).length);
+          }
+        })
+        .catch(() => {});
+    fetchNotifs();
+    const id = setInterval(fetchNotifs, 20_000);
+    return () => clearInterval(id);
   }, []);
 
   const markAllRead = async () => {

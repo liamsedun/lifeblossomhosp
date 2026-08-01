@@ -6,6 +6,7 @@ export const GET = withAuth(async (req, supabase, authUserId) => {
   const sp = new URL(req.url).searchParams;
   const invoiceId = sp.get("invoice_id");
   const patientId = sp.get("patient_id") || await resolvePatientId(supabase, authUserId);
+  const status = sp.get("status");
   const { page, pageSize, from, to } = getPagination(sp);
 
   let query = supabase
@@ -15,6 +16,7 @@ export const GET = withAuth(async (req, supabase, authUserId) => {
 
   if (invoiceId) query = query.eq("invoice_id", invoiceId);
   if (patientId) query = query.eq("patient_id", patientId);
+  if (status) query = query.eq("status", status);
 
   const { data, error, count } = await query.order("payment_date", { ascending: false }).range(from, to);
   if (error) return err(error.message, 500);

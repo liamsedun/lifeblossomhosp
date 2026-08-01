@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Stethoscope, PenLine, Trash2, Plus, KeyRound, Shield, ShieldOff } from "lucide-react";
+import { Stethoscope, PenLine, Trash2, Plus, KeyRound, Shield, ShieldOff, Landmark, Power } from "lucide-react";
 import { useRoleGuard } from "@/hooks/use-role-guard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,7 +41,7 @@ function getInitials(name: string) {
 }
 
 export default function SettingsPage() {
-  const { authorized } = useRoleGuard(["super_admin"]);
+  const { authorized } = useRoleGuard(["super_admin", "accountant"]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [loading, setLoading] = useState(true);
   const [editDoctor, setEditDoctor] = useState<Doctor | null>(null);
@@ -76,6 +76,7 @@ export default function SettingsPage() {
         <TabsList>
           <TabsTrigger value="doctors">Doctors</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="bank-accounts">Bank Accounts</TabsTrigger>
           <TabsTrigger value="general">General</TabsTrigger>
         </TabsList>
 
@@ -153,6 +154,10 @@ export default function SettingsPage() {
 
         <TabsContent value="users">
           <UsersTab />
+        </TabsContent>
+
+        <TabsContent value="bank-accounts">
+          <BankAccountsTab />
         </TabsContent>
 
         <TabsContent value="general">
@@ -327,6 +332,363 @@ function HospitalInfoTab() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+interface BankAccount {
+  id: string;
+  bank_name: string;
+  account_name: string;
+  account_number: string;
+  is_active: boolean;
+}
+
+function BankAccountsTab() {
+  const [accounts, setAccounts] = useState<BankAccount[]>([]);
+  const [max, setMax] = useState(5);
+  const [loading, setLoading] = useState(true);
+
+  async function loadAccounts() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/settings/bank-accounts");
+      const json = await res.json();
+      if (json.success) {
+        setAccounts(json.data.accounts || []);
+        setMax(json.data.max || 5);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadAccounts();
+  }, []);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="text-lg">Hospital Bank Accounts</CardTitle>
+          <p className="text-sm text-text-secondary mt-1">
+            Shown to patients when they choose Bank Transfer. Up to {max} accounts.
+          </p>
+        </div>
+        <AddBankAccountDialog
+          disabled={accounts.length >= max}
+          onSaved={loadAccounts}
+        />
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-16 animate-pulse rounded-lg bg-muted" />
+            ))}
+          </div>
+        ) : accounts.length === 0 ? (
+          <div className="text-center py-10">
+            <Landmark className="size-10 text-text-secondary mx-auto mb-3" />
+            <p className="text-sm text-text-secondary">
+              No bank accounts yet. Patients need at least one to pay by Bank Transfer.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-border">
+            {accounts.map((acc) => (
+              <div key={acc.id} className="flex items-center gap-4 py-3">
+                <div className="size-10 rounded-xl bg-primary-lighter/60 flex items-center justify-center shrink-0">
+                  <Landmark className="size-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{acc.bank_name}</p>
+                  <p className="text-xs text-text-secondary truncate">
+                    {acc.account_name} · <span className="font-mono">{acc.account_number}</span>
+                  </p>
+                </div>
+                <Badge variant={acc.is_active ? "success" : "secondary"} className="text-[10px]">
+                  {acc.is_active ? "Active" : "Hidden"}
+                </Badge>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={async () => {
+                      await fetch(`/api/settings/bank-accounts/${acc.id}`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ is_active: !acc.is_active }),
+                      });
+                      loadAccounts();
+                    }}
+                    className="rounded-lg p-2 text-text-secondary hover:text-foreground hover:bg-muted transition-colors"
+                    title={acc.is_active ? "Hide from patients" : "Show to patients"}
+                  >
+                    <Power className="size-4" />
+                  </button>
+                  <EditBankAccountDialog account={acc} onSaved={loadAccounts} />
+                  <DeleteBankAccountButton
+                    accountId={acc.id}
+                    accountLabel={`${acc.bank_name} ${acc.account_number}`}
+                    onDeleted={loadAccounts}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function BankAccountDialogBody({
+  form,
+  setForm,
+  error,
+}: {
+  form: { bank_name: string; account_name: string; account_number: string };
+  setForm: (f: { bank_name: string; account_name: string; account_number: string }) => void;
+  error: string;
+}) {
+  const inputClass = "flex h-10 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50";
+  return (
+    <>
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-1">Bank Name</label>
+        <Input
+          placeholder="e.g. Access Bank"
+          className={inputClass}
+          value={form.bank_name}
+          onChange={(e) => setForm({ ...form, bank_name: e.target.value })}
+          required
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-1">Account Name</label>
+        <Input
+          placeholder="e.g. Life Blossom Hospital Ltd"
+          className={inputClass}
+          value={form.account_name}
+          onChange={(e) => setForm({ ...form, account_name: e.target.value })}
+          required
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-1">Account Number</label>
+        <Input
+          placeholder="10-digit NUBAN account number"
+          className={inputClass}
+          value={form.account_number}
+          onChange={(e) => setForm({ ...form, account_number: e.target.value.replace(/\D/g, "").slice(0, 10) })}
+          required
+        />
+      </div>
+      {error && (
+        <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
+      )}
+    </>
+  );
+}
+
+function AddBankAccountDialog({ disabled, onSaved }: { disabled: boolean; onSaved: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState({ bank_name: "", account_name: "", account_number: "" });
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    if (form.account_number.length !== 10) {
+      setError("Account number must be exactly 10 digits");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/settings/bank-accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bank_name: form.bank_name.trim(),
+          account_name: form.account_name.trim(),
+          account_number: form.account_number.trim(),
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setOpen(false);
+        setForm({ bank_name: "", account_name: "", account_number: "" });
+        onSaved();
+      } else {
+        setError(json.error || "Failed to save account");
+      }
+    } catch {
+      setError("Network error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" disabled={disabled} title={disabled ? `Maximum of 5 accounts reached` : "Add a bank account"}>
+          <Plus className="size-4" />
+          Add Account
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Add Bank Account</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <BankAccountDialogBody form={form} setForm={setForm} error={error} />
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline" className="border-white/[0.08] text-white/70 hover:bg-white/[0.06]">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button type="submit" disabled={saving}>
+              {saving ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditBankAccountDialog({ account, onSaved }: { account: BankAccount; onSaved: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState({
+    bank_name: account.bank_name,
+    account_name: account.account_name,
+    account_number: account.account_number,
+  });
+
+  useEffect(() => {
+    setForm({
+      bank_name: account.bank_name,
+      account_name: account.account_name,
+      account_number: account.account_number,
+    });
+  }, [account]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    if (form.account_number.length !== 10) {
+      setError("Account number must be exactly 10 digits");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/settings/bank-accounts/${account.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bank_name: form.bank_name.trim(),
+          account_name: form.account_name.trim(),
+          account_number: form.account_number.trim(),
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setOpen(false);
+        onSaved();
+      } else {
+        setError(json.error || "Failed to save account");
+      }
+    } catch {
+      setError("Network error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="icon" className="size-8">
+          <PenLine className="size-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Edit Bank Account</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <BankAccountDialogBody form={form} setForm={setForm} error={error} />
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline" className="border-white/[0.08] text-white/70 hover:bg-white/[0.06]">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button type="submit" disabled={saving}>
+              {saving ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteBankAccountButton({
+  accountId,
+  accountLabel,
+  onDeleted,
+}: {
+  accountId: string;
+  accountLabel: string;
+  onDeleted: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      await fetch(`/api/settings/bank-accounts/${accountId}`, { method: "DELETE" });
+      setOpen(false);
+      onDeleted();
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="icon" className="size-8 text-danger hover:text-danger hover:bg-danger/10">
+          <Trash2 className="size-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Delete Bank Account</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-text-secondary">
+          Remove <strong>{accountLabel}</strong>? Patients will no longer see it for Bank Transfer payments.
+        </p>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline" className="border-white/[0.08] text-white/70 hover:bg-white/[0.06]">
+              Cancel
+            </Button>
+          </DialogClose>
+          <Button type="button" variant="destructive" onClick={handleDelete} disabled={deleting}>
+            {deleting ? "Deleting..." : "Delete"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

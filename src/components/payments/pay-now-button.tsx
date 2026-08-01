@@ -1,14 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Loader2, ExternalLink } from "lucide-react";
-import { useAuth } from "@/contexts/auth-context";
+import Link from "next/link";
+import { ExternalLink } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Props {
   invoiceId: string;
-  patientId: string;
-  amount: number; // in Naira
+  patientId?: string;
+  amount?: number; // in Naira
   email?: string;
   disabled?: boolean;
   className?: string;
@@ -17,65 +16,23 @@ interface Props {
 }
 
 /**
- * Pay Now button — initializes a Paystack transaction and redirects
- * the user to the Paystack checkout page.
+ * Pay Now button — routes the patient to the payment-method page
+ * (/patient/payments/:invoiceId/pay) where they can choose Paystack,
+ * Bank Transfer (with declaration) or POS at the counter.
  */
-export default function PayNowButton({
-  invoiceId,
-  patientId,
-  amount,
-  email,
-  disabled,
-  className,
-  onSuccess,
-  onError,
-}: Props) {
-  const { user } = useAuth();
-  const [loading, setLoading] = useState(false);
-
-  const handlePay = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/payments/initialize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          invoice_id: invoiceId,
-          patient_id: patientId,
-          email: email || user?.email,
-          amount,
-        }),
-      });
-
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Failed to initialize payment");
-
-      // Redirect to Paystack checkout
-      window.location.href = json.data.authorization_url;
-    } catch (err: any) {
-      onError?.(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+export default function PayNowButton({ invoiceId, disabled, className }: Props) {
   return (
-    <Button
-      onClick={handlePay}
-      disabled={disabled || loading}
-      className={className}
-    >
-      {loading ? (
-        <>
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          Redirecting...
-        </>
-      ) : (
-        <>
-          Pay Now
-          <ExternalLink className="ml-2 h-4 w-4" />
-        </>
+    <Link
+      href={`/patient/payments/${invoiceId}/pay`}
+      aria-disabled={disabled}
+      className={cn(
+        "inline-flex items-center justify-center gap-2 text-sm font-semibold",
+        disabled && "pointer-events-none opacity-50",
+        className
       )}
-    </Button>
+    >
+      Pay Now
+      <ExternalLink className="h-4 w-4" />
+    </Link>
   );
 }
