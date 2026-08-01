@@ -15,6 +15,29 @@
 -- ============================================================================
 
 -- ────────────────────────────────────────────────────────────────────────────
+-- 0. HELPER FUNCTIONS (self-contained — do not assume database/rls_policies.sql
+--    was run first; CREATE OR REPLACE is idempotent)
+-- ────────────────────────────────────────────────────────────────────────────
+DO $$ BEGIN
+  ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'super_admin';
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.current_user_role()
+RETURNS user_role
+LANGUAGE SQL STABLE SECURITY DEFINER
+AS $$
+  SELECT role FROM public.users WHERE id = auth.uid();
+$$;
+
+CREATE OR REPLACE FUNCTION public.current_user_org_id()
+RETURNS UUID
+LANGUAGE SQL STABLE SECURITY DEFINER
+AS $$
+  SELECT org_id FROM public.users WHERE id = auth.uid();
+$$;
+
+-- ────────────────────────────────────────────────────────────────────────────
 -- 1. audit_logs: add role + description columns (IF NOT EXISTS)
 -- ────────────────────────────────────────────────────────────────────────────
 ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS role VARCHAR(20);
