@@ -6,6 +6,9 @@
 [build.environment]
   # Let the Netlify Next.js Runtime handle output mode
   NEXT_PRIVATE_STANDALONE = "false"
+  # NEXT_PUBLIC_* vars are intentionally public (inlined into client
+  # bundles) — exclude them from Netlify's secrets scan false positives.
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,NEXT_PUBLIC_VAPID_PUBLIC_KEY,NEXT_PUBLIC_APP_URL"
 
 # ─── Netlify Next.js Runtime ─────────────────────────────────────
 # Netlify auto-detects Next.js. This section pins the required
