@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { withAuth, ok, err, parseBody, ValidationError, resolveOrgId } from "@/lib/api-utils";
 import { createServiceClient } from "@/lib/supabase/server";
 import { notifyUsers } from "@/lib/notify";
+import { logAudit } from "@/lib/audit";
 
 const BILLING_ROLES = ["super_admin", "admin", "accountant"];
 
@@ -111,6 +112,8 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
       tag: `payment-${payment.id}`,
     });
   }
+
+  await logAudit(req, authUserId, { action: "update", entityType: "payments", entityId: payment.id, description: `Cancelled pending ${methodLabel} of ₦${Number(payment.amount || 0).toLocaleString()}${refText} for ${invText}` });
 
   return ok({ id: payment.id, status: "cancelled" });
 });

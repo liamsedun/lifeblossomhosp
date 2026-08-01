@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError, resolvePatientId, resolveOrgId } from "@/lib/api-utils";
 import { createServiceClient } from "@/lib/supabase/server";
+import { logAudit } from "@/lib/audit";
 
 export const GET = withAuth(async (req, supabase, authUserId) => {
   const svc = createServiceClient();
@@ -100,6 +101,8 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
     .from("invoices")
     .select("*, patient:patients(*, user:users(id, first_name, last_name)), items:invoice_items(*), payments:payments(*), attending_staff:attending_staff_id(id, first_name, last_name, role, avatar_url)")
     .eq("id", invoice.id).single();
+
+  await logAudit(req, authUserId, { action: "create", entityType: "invoices", entityId: invoice.id, description: `Invoice ${invoiceNumber} created for ₦${body.total_amount.toLocaleString()}` });
 
   return ok({ ...full, items }, 201);
 });

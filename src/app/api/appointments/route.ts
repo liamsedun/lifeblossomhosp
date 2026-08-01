@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError, resolvePatientId, resolveOrgId } from "@/lib/api-utils";
 import { createServiceClient } from "@/lib/supabase/server";
+import { logAudit } from "@/lib/audit";
 
 // GET /api/appointments — list (auto-scopes to patient for patient-role users)
 export const GET = withAuth(async (req, supabase, authUserId) => {
@@ -57,5 +58,6 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
     .single();
 
   if (error) return err(error.message, 500);
+  await logAudit(req, authUserId, { action: "create", entityType: "appointments", entityId: data.id, description: `Appointment created for patient ${body.patient_id} on ${body.appointment_date}` });
   return ok(data, 201);
 });

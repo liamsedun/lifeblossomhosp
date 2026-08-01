@@ -5,6 +5,7 @@ import {
 } from "@/lib/api-utils";
 import { createServiceClient } from "@/lib/supabase/server";
 import { storeDependantAvatar } from "@/lib/dependant-avatar";
+import { logAudit, logView } from "@/lib/audit";
 import type { Dependant } from "@/lib/api-types";
 
 const MAX_DEPENDANTS = 5;
@@ -127,6 +128,8 @@ export const GET = withAuth(async (req, supabase, authUserId) => {
 
   const dependants = (rows || []).map((r: any) => wrapDependant(r, primary.patient_number));
   const withBills = await attachInvoiceSummary(svc, dependants);
+
+  await logView(req, authUserId, "dependants", familyPatientId, "Listed family dependants");
 
   return ok({
     family: { patient_id: primary.id, family_code: primary.patient_number },
@@ -253,8 +256,10 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
       .select("*, user:users(id, first_name, last_name, phone, avatar_url)")
       .eq("id", created.id)
       .single();
+    await logAudit(req, authUserId, { action: "create", entityType: "dependants", entityId: created.id, description: `Dependant "${fullName}" added` });
     return ok(wrapDependant(final as PatientRow, primary.patient_number), 201);
   }
 
+  await logAudit(req, authUserId, { action: "create", entityType: "dependants", entityId: created.id, description: `Dependant "${fullName}" added` });
   return ok(wrapDependant(created as PatientRow, primary.patient_number), 201);
 });

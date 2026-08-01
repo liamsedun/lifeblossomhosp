@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError, resolvePatientId, resolveOrgId } from "@/lib/api-utils";
 import { createServiceClient } from "@/lib/supabase/server";
+import { logAudit, logView } from "@/lib/audit";
 
 // GET /api/patients — list patients (patient sees only own, staff sees all in org)
 export const GET = withAuth(async (req, supabase, authUserId) => {
@@ -18,6 +19,7 @@ export const GET = withAuth(async (req, supabase, authUserId) => {
       .maybeSingle();
 
     if (error) return err(error.message, 500);
+    if (data) await logView(req, authUserId, "patients", data.id, "Viewed own patient profile");
     return paginated(data ? [data] : [], data ? 1 : 0, page, pageSize);
   }
 
@@ -90,5 +92,6 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
     .single();
 
   if (patientError) return err(patientError.message, 500);
+  await logAudit(req, authUserId, { action: "create", entityType: "patients", entityId: patient.id, description: `Patient ${patientNumber} (${first_name} ${last_name}) registered` });
   return ok(patient, 201);
 });

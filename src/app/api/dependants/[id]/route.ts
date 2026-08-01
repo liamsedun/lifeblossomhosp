@@ -5,6 +5,7 @@ import {
 } from "@/lib/api-utils";
 import { createServiceClient } from "@/lib/supabase/server";
 import { storeDependantAvatar } from "@/lib/dependant-avatar";
+import { logAudit, logView } from "@/lib/audit";
 import type { Dependant } from "@/lib/api-types";
 
 const VALID_RELATIONSHIPS = ["child", "spouse", "parent", "sibling", "grandparent", "other"];
@@ -119,6 +120,8 @@ export const GET = withAuth(async (req, supabase, authUserId, ctx) => {
   wrapped.pending_invoices = (invoices || []).length;
   if (wrapped.status === "active" && outstanding > 0) wrapped.status = "needs_attention";
 
+  await logView(req, authUserId, "dependants", dependantId, `Viewed dependant ${wrapped.full_name}`);
+
   return ok(wrapped);
 });
 
@@ -189,6 +192,7 @@ export const PUT = withAuth(async (req, supabase, authUserId, ctx) => {
     .select("*, user:users(id, first_name, last_name, phone, avatar_url)")
     .eq("id", dependantId)
     .single();
+  await logAudit(req, authUserId, { action: "update", entityType: "dependants", entityId: dependantId, description: `Updated dependant ${dependant.user?.first_name || ""}`.trim() });
   return ok(wrapDependant(updated, familyCode));
 });
 
@@ -204,6 +208,8 @@ export const DELETE = withAuth(async (req, supabase, authUserId, ctx) => {
 
   // Remove the placeholder login row
   await svc.from("users").delete().eq("id", dependant.user_id);
+
+  await logAudit(req, authUserId, { action: "delete", entityType: "dependants", entityId: dependantId, description: "Dependant removed" });
 
   return ok({ success: true });
 });

@@ -5,6 +5,7 @@ import {
 } from "@/lib/api-utils";
 import { createServiceClient } from "@/lib/supabase/server";
 import { notifyUsers } from "@/lib/notify";
+import { logAudit } from "@/lib/audit";
 
 /**
  * POST /api/payments/declare
@@ -103,6 +104,8 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
     url: "/admin/billing",
     tag: `payment-${payment.id}`,
   });
+
+  await logAudit(req, authUserId, { action: "create", entityType: "payments", entityId: payment.id, description: `Patient declared ${methodLabel} of ₦${body.amount.toLocaleString()} for invoice ${invoice.invoice_number}` });
 
   return ok(payment, 201);
 });

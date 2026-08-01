@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError, resolvePatientId } from "@/lib/api-utils";
+import { logView } from "@/lib/audit";
 
 export const GET = withAuth(async (req, supabase, authUserId) => {
   const sp = new URL(req.url).searchParams;
@@ -17,6 +18,11 @@ export const GET = withAuth(async (req, supabase, authUserId) => {
 
   const { data, error, count } = await query.order("created_at", { ascending: false }).range(from, to);
   if (error) return err(error.message, 500);
+
+  if (patientId && data && data.length > 0) {
+    await logView(req, authUserId, "medical_records", patientId, `Listed ${(data as any[]).length} medical record(s) for patient ${patientId}`);
+  }
+
   return paginated(data, count || 0, page, pageSize);
 });
 

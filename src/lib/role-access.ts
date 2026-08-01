@@ -22,6 +22,7 @@ export const NAV_ACCESS: NavItem[] = [
   { label: "Live Chat",     href: "/admin/chats",        icon: "MessageSquare",  roles: ["super_admin", "admin", "doctor", "accountant", "nurse"] },
   { label: "Staff",         href: "/admin/staff",       icon: "Stethoscope",     roles: ["super_admin", "admin", "accountant"] },
   { label: "Reports",       href: "/admin/reports",     icon: "BarChart3",       roles: ["super_admin", "admin", "accountant"] },
+  { label: "Security & Audit", href: "/admin/audit-logs", icon: "ShieldCheck",   roles: ["super_admin", "admin"] },
   { label: "Settings",      href: "/admin/settings",    icon: "Settings",        roles: ["super_admin"] },
   { label: "Profile",       href: "/admin/profile",     icon: "UserCircle",      roles: ["super_admin", "admin", "doctor", "accountant", "nurse"] },
 ];

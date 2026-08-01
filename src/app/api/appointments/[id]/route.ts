@@ -1,18 +1,20 @@
 import { NextRequest } from "next/server";
 import { withAuth, ok, err, parseBody } from "@/lib/api-utils";
 import { createServiceClient } from "@/lib/supabase/server";
+import { logAudit, logView } from "@/lib/audit";
 
-export const GET = withAuth(async (req, supabase, _uid, context) => {
+export const GET = withAuth(async (req, supabase, authUserId, context) => {
   const { id } = await context.params;
   const { data, error } = await supabase
     .from("appointments")
     .select("*, patient:patients(*, user:users(id, first_name, last_name)), doctor:staff!doctor_id(*, user:users(id, first_name, last_name))")
     .eq("id", id).single();
   if (error || !data) return err("Not found", 404);
+  await logView(req, authUserId, "appointments", id, "Viewed appointment detail");
   return ok(data);
 });
 
-export const PUT = withAuth(async (req, supabase, _uid, context) => {
+export const PUT = withAuth(async (req, supabase, authUserId, context) => {
   const { id } = await context.params;
   const svc = createServiceClient();
   const body = await parseBody<any>(req);
@@ -29,6 +31,8 @@ export const PUT = withAuth(async (req, supabase, _uid, context) => {
     .select("*, patient:patients(*, user:users(id, first_name, last_name)), doctor:staff!doctor_id(*, user:users(id, first_name, last_name))")
     .single();
   if (error) return err(error.message, 500);
+
+  await logAudit(req, authUserId, { action: "update", entityType: "appointments", entityId: id, description: body.status && body.status !== existing.status ? `Appointment status changed to ${body.status}` : "Appointment updated" });
 
   // Auto-create notification for patient on status change
   if (body.status && body.status !== existing.status) {
@@ -55,12 +59,13 @@ export const PUT = withAuth(async (req, supabase, _uid, context) => {
   return ok(data);
 });
 
-export const DELETE = withAuth(async (req, supabase, _uid, context) => {
+export const DELETE = withAuth(async (req, supabase, authUserId, context) => {
   const { id } = await context.params;
   const svc = createServiceClient();
   const { data: existing } = await supabase.from("appointments").select("id").eq("id", id).single();
   if (!existing) return err("Not found", 404);
   const { error } = await svc.from("appointments").delete().eq("id", id);
   if (error) return err(error.message, 500);
+  await logAudit(req, authUserId, { action: "delete", entityType: "appointments", entityId: id, description: "Appointment deleted" });
   return ok(null);
 });

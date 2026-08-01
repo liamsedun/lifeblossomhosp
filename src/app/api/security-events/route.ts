@@ -4,10 +4,10 @@ import { withAuth, ok, paginated, err, getPagination } from "@/lib/api-utils";
 const ADMIN_ROLES = ["super_admin", "admin"];
 
 /**
- * GET /api/audit-logs
+ * GET /api/security-events
  *
- * Admin-only. Filterable by entity (table), entity id, user, role, action,
- * and created_at date range (ISO dates, inclusive of the 'to' day).
+ * Admin-only. Lists anomaly/security events (failed logins, rapid views,
+ * lockouts). Filterable by event_type, severity, user, and date range.
  */
 export const GET = withAuth(async (req, supabase, authUserId) => {
   const sp = new URL(req.url).searchParams;
@@ -18,27 +18,23 @@ export const GET = withAuth(async (req, supabase, authUserId) => {
     .eq("id", authUserId)
     .single();
   if (!caller || !ADMIN_ROLES.includes(caller.role)) {
-    return err("Only admins can view audit logs", 403);
+    return err("Only admins can view security events", 403);
   }
 
-  const entityType = sp.get("entity_type");
-  const entityId = sp.get("entity_id");
+  const eventType = sp.get("event_type");
+  const severity = sp.get("severity");
   const userId = sp.get("user_id");
-  const role = sp.get("role");
-  const action = sp.get("action");
   const from = sp.get("from");
   const to = sp.get("to");
   const { page, pageSize, from: offset, to: end } = getPagination(sp);
 
   let query = supabase
-    .from("audit_logs")
+    .from("security_events")
     .select("*, user:users(id, first_name, last_name, email)", { count: "exact" });
 
-  if (entityType) query = query.eq("entity_type", entityType);
-  if (entityId) query = query.eq("entity_id", entityId);
+  if (eventType) query = query.eq("event_type", eventType);
+  if (severity) query = query.eq("severity", severity);
   if (userId) query = query.eq("user_id", userId);
-  if (role) query = query.eq("role", role);
-  if (action) query = query.eq("action", action);
   if (from) query = query.gte("created_at", from);
   if (to) query = query.lte("created_at", `${to}T23:59:59.999Z`);
 

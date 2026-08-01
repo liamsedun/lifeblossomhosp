@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { checkLoginLockout, recordLoginFailure, logAuth } from "@/lib/audit";
 
 /**
  * POST /api/auth/login
@@ -12,30 +13,49 @@ import { createClient } from "@/lib/supabase/server";
  *   { loginType: "email", email: string, password: string }
  *   { loginType: "phone", phone: string, password: string }
  *   { loginType: "patient_id", patientId: string, password: string }
+ *
+ * Security: failed attempts are recorded in security_events; after 5
+ * failures for the same identifier + IP within 15 minutes the account is
+ * temporarily locked (HTTP 429).
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { loginType, password } = body;
 
+    const identifier =
+      loginType === "email" ? (body.email || "").toLowerCase()
+      : loginType === "phone" ? (body.phone || "")
+      : (body.patientId || "");
+
+    if (!loginType || !password || !identifier) {
+      return NextResponse.json({ success: false, error: "Missing credentials" }, { status: 400 });
+    }
+
+    // Brute-force lockout: 5+ failures for this identifier+IP in 15 min
+    if (await checkLoginLockout(req, identifier)) {
+      await recordLoginFailure(req, identifier, "blocked by temporary lockout");
+      return NextResponse.json(
+        { success: false, error: "Too many failed login attempts. Please try again in 15 minutes." },
+        { status: 429 }
+      );
+    }
+
     // Use the SSR-compatible server client so session cookies are written
     const supabase = await createClient();
 
+    const fail = async (message: string, status = 401) => {
+      await recordLoginFailure(req, identifier, message);
+      return NextResponse.json({ success: false, error: message }, { status });
+    };
+
     if (loginType === "email") {
-      const email: string | undefined = body.email;
-      if (!email || !password) {
-        return NextResponse.json({ success: false, error: "Email and password required" }, { status: 400 });
-      }
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 401 });
+      const { error } = await supabase.auth.signInWithPassword({ email: identifier, password });
+      if (error) return await fail(error.message);
     } //
     else if (loginType === "phone") {
-      const phone: string | undefined = body.phone;
-      if (!phone || !password) {
-        return NextResponse.json({ success: false, error: "Phone and password required" }, { status: 400 });
-      }
-      const { error } = await supabase.auth.signInWithPassword({ phone, password });
-      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 401 });
+      const { error } = await supabase.auth.signInWithPassword({ phone: identifier, password });
+      if (error) return await fail(error.message);
     } //
     else if (loginType === "patient_id") {
       // Patient ID login: resolve to email via service role, then authenticate
@@ -54,6 +74,7 @@ export async function POST(req: NextRequest) {
       );
       const patients = await patientRes.json();
       if (!Array.isArray(patients) || patients.length === 0) {
+        await recordLoginFailure(req, identifier, "patient id not found");
         return NextResponse.json({ success: false, error: "Patient ID not found" }, { status: 404 });
       }
 
@@ -66,11 +87,12 @@ export async function POST(req: NextRequest) {
       const users = await userRes.json();
       const email: string | undefined = Array.isArray(users) && users.length > 0 ? users[0].email : undefined;
       if (!email) {
+        await recordLoginFailure(req, identifier, "no email on profile");
         return NextResponse.json({ success: false, error: "No email found for this patient" }, { status: 400 });
       }
 
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 401 });
+      if (error) return await fail(error.message);
     } //
     else {
       return NextResponse.json({ success: false, error: "Invalid login type" }, { status: 400 });
@@ -100,6 +122,8 @@ export async function POST(req: NextRequest) {
         { status: 404 },
       );
     }
+
+    await logAuth(req, authUser.id, "login");
 
     return NextResponse.json({ success: true, data: { user: profile, session: true } });
   } catch (err) {
