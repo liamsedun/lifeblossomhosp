@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,14 +18,21 @@ export async function POST(req: NextRequest) {
     const ext = file.name.split(".").pop() || "png";
     const fileName = `doctor-${Date.now()}-${Math.round(Math.random() * 1e6)}.${ext}`;
 
-    const uploadDir = path.join(process.cwd(), "uploads", "doctors");
-    await mkdir(uploadDir, { recursive: true });
+    const admin = createServiceClient();
+    const { error: uploadError } = await admin.storage
+      .from("doctor-images")
+      .upload(fileName, file, {
+        upsert: true,
+        contentType: file.type || "application/octet-stream",
+      });
 
-    const buffer = Buffer.from(await file.arrayBuffer());
-    await writeFile(path.join(uploadDir, fileName), buffer);
+    if (uploadError) {
+      return NextResponse.json({ success: false, error: uploadError.message }, { status: 500 });
+    }
 
-    const imageUrl = `/api/uploads/doctors/${fileName}`;
-    return NextResponse.json({ success: true, data: { image_url: imageUrl } });
+    const { data: { publicUrl } } = admin.storage.from("doctor-images").getPublicUrl(fileName);
+
+    return NextResponse.json({ success: true, data: { image_url: publicUrl } });
   } catch {
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }

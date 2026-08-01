@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,29 +16,33 @@ export async function POST(req: NextRequest) {
     }
 
     const ext = file.name.split(".").pop() || "png";
-    const fileName = `avatar-${authUser.id}-${Date.now()}.${ext}`;
+    const fileName = `avatar-${Date.now()}.${ext}`;
+    const storagePath = `${authUser.id}/${fileName}`;
 
-    // Save to a private directory outside public/
-    const uploadDir = path.join(process.cwd(), "uploads", "avatars");
-    await mkdir(uploadDir, { recursive: true });
+    const admin = createServiceClient();
+    const { error: uploadError } = await admin.storage
+      .from("avatars")
+      .upload(storagePath, file, {
+        upsert: true,
+        contentType: file.type || "application/octet-stream",
+      });
 
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const filePath = path.join(uploadDir, fileName);
-    await writeFile(filePath, buffer);
+    if (uploadError) {
+      return NextResponse.json({ success: false, error: uploadError.message }, { status: 500 });
+    }
 
-    // Store URL pointing to our API serving route
-    const avatarUrl = `/api/uploads/avatars/${fileName}`;
+    const { data: { publicUrl } } = admin.storage.from("avatars").getPublicUrl(storagePath);
 
     const { error: updateError } = await supabase
       .from("users")
-      .update({ avatar_url: avatarUrl })
+      .update({ avatar_url: publicUrl })
       .eq("id", authUser.id);
 
     if (updateError) {
       return NextResponse.json({ success: false, error: updateError.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, data: { avatar_url: avatarUrl } });
+    return NextResponse.json({ success: true, data: { avatar_url: publicUrl } });
   } catch {
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }

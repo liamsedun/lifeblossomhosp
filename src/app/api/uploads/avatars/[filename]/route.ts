@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readFile } from "fs/promises";
-import path from "path";
+import { createServiceClient } from "@/lib/supabase/server";
 
 const MIME_MAP: Record<string, string> = {
   png: "image/png",
@@ -23,11 +22,15 @@ export async function GET(
       return new NextResponse("Forbidden", { status: 403 });
     }
 
-    const filePath = path.join(process.cwd(), "uploads", "avatars", filename);
+    const admin = createServiceClient();
+    const { data, error } = await admin.storage.from("avatars").download(filename);
+    if (error || !data) {
+      return new NextResponse("Not found", { status: 404 });
+    }
+
+    const buffer = Buffer.from(await data.arrayBuffer());
     const ext = filename.split(".").pop()?.toLowerCase() || "png";
     const mime = MIME_MAP[ext] || "application/octet-stream";
-
-    const buffer = await readFile(filePath);
 
     return new NextResponse(buffer, {
       status: 200,
