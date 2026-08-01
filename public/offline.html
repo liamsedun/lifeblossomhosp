@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Offline — Life Blossom Hospital</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: linear-gradient(160deg, #0a0f1a 0%, #0d1322 55%, #0f1a2e 100%);
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      min-height: 100vh;
+    }
+    .card {
+      max-width: 360px;
+      width: 100%;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      padding: 40px 28px;
+      backdrop-filter: blur(12px);
+    }
+    .badge {
+      width: 72px;
+      height: 72px;
+      margin: 0 auto 20px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, #0f4c81, #1a6cb0);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      font-weight: 800;
+      color: #e0a84a;
+      box-shadow: 0 10px 30px rgba(15, 76, 129, 0.45);
+    }
+    h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+    p { margin-top: 10px; font-size: 14px; line-height: 1.6; color: rgba(255, 255, 255, 0.55); }
+    button {
+      margin-top: 26px;
+      width: 100%;
+      padding: 13px 20px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #e0a84a, #d1902f);
+      color: #0a0f1a;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.15s ease, opacity 0.15s ease;
+    }
+    button:hover { transform: translateY(-1px); opacity: 0.92; }
+    button:active { transform: scale(0.98); }
+    .offline-note { font-size: 11px; color: rgba(255, 255, 255, 0.3); margin-top: 14px; }
+    .retry { font-size: 11px; margin-top: 8px; }
+    .retry a { color: #e0a84a; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge">LB</div>
+    <h1>You're offline</h1>
+    <p>
+      No internet connection right now. Your device went offline — check your
+      Wi-Fi or mobile data and try again.
+    </p>
+    <button onclick="window.location.reload()">Try Again</button>
+    <p class="offline-note">Life Blossom Care &amp; Cure Hospital</p>
+    <p class="retry">Or <a href="javascript:window.location.reload()">retry now</a></p>
+  </div>
+</body>
+</html>

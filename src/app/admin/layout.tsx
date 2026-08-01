@@ -23,6 +23,7 @@ import {
   CheckCheck,
   Mail,
   MessageSquare,
+  ShieldCheck,
 } from "lucide-react";
 import { cn, formatDate, formatTime } from "@/lib/utils";
 import Logo from "@/components/ui/logo";
@@ -40,6 +41,8 @@ import {
 import { useAuth } from "@/contexts/auth-context";
 import { getNavForRole, CLINICAL_ROLES, FULL_ACCESS_ROLES, ADMIN_ROLES } from "@/lib/role-access";
 import type { UserRole } from "@/lib/api-types";
+import IdleLogout from "@/components/ui/IdleLogout";
+import { NotificationBell } from "@/components/pwa/pwa-wrapper";
 
 interface NotificationItem {
   id: string;
@@ -53,7 +56,7 @@ interface NotificationItem {
 
 const ICON_MAP: Record<string, React.ElementType> = {
   LayoutDashboard, Users, CalendarDays, Wallet, Receipt, Gift,
-  Mail, MessageSquare, Stethoscope, BarChart3, Settings, UserCircle,
+  Mail, MessageSquare, Stethoscope, BarChart3, Settings, UserCircle, ShieldCheck,
 };
 
 function getVisibleNav(role?: UserRole | null) {
@@ -169,6 +172,7 @@ export default function AdminLayout({
 
   return (
     <div className="flex h-screen overflow-hidden bg-gradient-to-br from-[#0a0f1a] via-[#0d1322] to-[#0f1a2e]">
+      <IdleLogout />
       <div className="fixed inset-0 bg-[url('/grid.svg')] opacity-[0.03] pointer-events-none" />
 
       {/* Mobile overlay */}
@@ -265,6 +269,7 @@ export default function AdminLayout({
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
+            <NotificationBell className="text-white/50 hover:text-white hover:bg-white/[0.06]" />
             <NotificationDropdown />
 
             <DropdownMenu>

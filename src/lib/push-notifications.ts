@@ -29,6 +29,36 @@ function ensureVapidConfigured(): void {
 
 // ─── Send ───────────────────────────────────────────────────────
 
+/**
+ * Push payload shape sent to the service worker (`public/sw.js`).
+ *
+ * Example (cURL — admin broadcast):
+ *   curl -X POST https://<host>/api/notifications/send \
+ *     -H "Authorization: Bearer <admin-session-cookie>" \
+ *     -H "Content-Type: application/json" \
+ *     -d '{
+ *       "title": "New appointment confirmed",
+ *       "body": "Dr. Adebayo confirmed your checkup for tomorrow 10:00 AM.",
+ *       "url": "/patient/appointments",
+ *       "id": "apt-1234",
+ *       "tag": "appointment-confirmed",
+ *       "requireInteraction": false,
+ *       "actions": [
+ *         { "action": "view", "title": "View" },
+ *         { "action": "reschedule", "title": "Reschedule" }
+ *       ]
+ *     }'
+ *
+ * From server code:
+ *   await sendPushNotifications(subscriptions, {
+ *     title: "New message",
+ *     body: "You have 1 unread message",
+ *     url: "/patient/chats",
+ *   });
+ *
+ * The SW shows the notification with `icon` / `badge` PNGs and opens
+ * `data.url` on click.
+ */
 export interface PushPayload {
   title: string;
   body?: string;

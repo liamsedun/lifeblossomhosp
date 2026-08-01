@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import { useInboxRealtime } from "@/lib/chat";
 import type { Notification } from "@/lib/api-types";
+import IdleLogout from "@/components/ui/IdleLogout";
+import { NotificationBell } from "@/components/pwa/pwa-wrapper";
 
 const tabs = [
   { href: "/patient", label: "Home", icon: Home },
@@ -138,6 +140,7 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a0f1a] via-[#0d1322] to-[#0f1a2e] flex flex-col">
+      <IdleLogout />
       <div className="fixed inset-0 bg-[url('/grid.svg')] opacity-[0.03] pointer-events-none" />
 
       <header className="sticky top-0 z-40 bg-[#0d1322]/80 backdrop-blur-xl border-b border-white/[0.06] px-4 py-3">
@@ -158,6 +161,7 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
             >
               <MessageCircle className="w-5 h-5 text-emerald-400 group-hover:scale-110 transition-transform" />
             </a>
+            <NotificationBell className="text-white/70 hover:text-white hover:bg-white/[0.06]" />
             <div className="relative">
               <button
                 ref={bellRef}

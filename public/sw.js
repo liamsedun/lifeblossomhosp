@@ -6,21 +6,24 @@
 // ============================================================================
 
 const CACHE = {
-  STATIC: "lbh-static-v1",
-  IMAGES: "lbh-images-v1",
-  FONTS: "lbh-fonts-v1",
-  API: "lbh-api-v1",
-  PAGES: "lbh-pages-v1",
+  STATIC: "lbh-static-v2",
+  IMAGES: "lbh-images-v2",
+  FONTS: "lbh-fonts-v2",
+  API: "lbh-api-v2",
+  PAGES: "lbh-pages-v2",
 };
 
 const STATIC_URLS = [
   "/",
   "/manifest.json",
+  "/offline.html",
   "/favicon.svg",
   "/apple-touch-icon.svg",
-  "/icons/icon-192.svg",
-  "/icons/icon-512.svg",
+  "/icons/icon-192.png",
+  "/icons/icon-512.png",
 ];
+
+const OFFLINE_URL = "/offline.html";
 
 // ─── Install ────────────────────────────────────────────────────
 self.addEventListener("install", (event) => {
@@ -77,6 +80,17 @@ async function networkFirst(request, cacheName, expirySec = 300) {
     if (cached) {
       const cachedAt = parseInt(cached.headers.get("x-lbh-cached-at") || "0", 10);
       if (Date.now() - cachedAt < expirySec * 1000) return cached;
+    }
+    // Navigation requests fall back to the branded offline page
+    if (request.mode === "navigate") {
+      const offline = await caches.match(OFFLINE_URL);
+      if (offline) return offline;
+      return new Response(
+        "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Offline</title></head>" +
+        "<body style=\"background:#0a0f1a;color:#fff;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0\">" +
+        "<h1 style=\"font-size:18px\">You are offline. Please check your connection.</h1></body></html>",
+        { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } }
+      );
     }
     return new Response(JSON.stringify({ success: false, error: "You are offline. Please check your connection." }), {
       status: 503,
@@ -159,8 +173,8 @@ self.addEventListener("push", (event) => {
   const title = data.title || "Life Blossom Hospital";
   const options = {
     body: data.body || "You have a new update.",
-    icon: "/icons/icon-192.svg",
-    badge: "/icons/icon-192.svg",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-maskable-192.png",
     vibrate: [200, 100, 200],
     data: {
       url: data.url || "/",

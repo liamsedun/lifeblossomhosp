@@ -1,7 +1,8 @@
 {
+  "id": "/",
   "name": "Life Blossom Care & Cure Hospital",
   "short_name": "Life Blossom",
-  "description": "Your health, our priority – where care meets cure. Hospital management and patient portal.",
+  "description": "Your health, our priority — where care meets cure. Hospital management and patient portal.",
   "start_url": "/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],
@@ -13,35 +14,33 @@
   "lang": "en-NG",
   "dir": "ltr",
   "prefer_related_applications": false,
-  "edge_side_panel": {},
   "icons": [
-    { "src": "/images/hosp-logo/life-blossom-logo.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/images/hosp-logo/life-blossom-logo.png", "sizes": "500x500", "type": "image/png", "purpose": "any" },
-    { "src": "/images/hosp-logo/life-blossom-logo.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
-    { "src": "/images/hosp-logo/life-blossom-logo.png", "sizes": "500x500", "type": "image/png", "purpose": "maskable" }
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
-  "screenshots": [],
   "shortcuts": [
     {
       "name": "My Appointments",
       "short_name": "Appointments",
       "description": "View upcoming appointments",
       "url": "/patient/appointments",
-      "icons": [{ "src": "/images/hosp-logo/life-blossom-logo.png", "sizes": "192x192", "type": "image/png" }]
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
       "name": "Payments",
       "short_name": "Pay",
       "description": "View bills and make payments",
       "url": "/patient/payments",
-      "icons": [{ "src": "/images/hosp-logo/life-blossom-logo.png", "sizes": "192x192", "type": "image/png" }]
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
       "name": "Admin Dashboard",
       "short_name": "Admin",
       "description": "Hospital administration",
       "url": "/admin",
-      "icons": [{ "src": "/images/hosp-logo/life-blossom-logo.png", "sizes": "192x192", "type": "image/png" }]
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }
