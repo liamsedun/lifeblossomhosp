@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Mail, MailOpen, Send, ReplyAll, Users, UserPlus, Loader2, ChevronDown,
-  CheckCheck, MessageSquare, Inbox, Clock, AlertCircle, X, Trash2,
+  CheckCheck, MessageSquare, Inbox, Clock, AlertCircle, X, Trash2, Search, Reply,
 } from "lucide-react";
 import { cn, formatDate, formatTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,94 @@ interface InternalMessage {
   recipient_count?: number;
 }
 
+function RecipientPicker({
+  search,
+  onSearch,
+  selected,
+  onToggle,
+  staffList,
+  patientList,
+  placeholder,
+}: {
+  search: string;
+  onSearch: (v: string) => void;
+  selected: string[];
+  onToggle: (id: string) => void;
+  staffList: StaffUser[];
+  patientList?: StaffUser[];
+  placeholder?: string;
+}) {
+  const q = search.toLowerCase();
+  const staff = staffList.filter(
+    (s) => s.full_name.toLowerCase().includes(q) || s.role.toLowerCase().includes(q)
+  );
+  const patients = (patientList || []).filter((s) => s.full_name.toLowerCase().includes(q));
+  const all = [...staffList, ...(patientList || [])];
+  const chips = all.filter((s) => selected.includes(s.id));
+
+  const renderRow = (s: StaffUser, tag?: string) => (
+    <label key={s.id}
+      className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-white/[0.04] cursor-pointer">
+      <input type="checkbox" checked={selected.includes(s.id)}
+        onChange={() => onToggle(s.id)}
+        className="accent-[#e0a84a]" />
+      <Avatar className="size-6">
+        <AvatarImage src={s.avatar_url || undefined} />
+        <AvatarFallback className="text-[9px] bg-white/[0.06] text-white/60">
+          {s.full_name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?"}
+        </AvatarFallback>
+      </Avatar>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs text-white/80 truncate">{s.full_name}</p>
+        <p className="text-[10px] text-white/40 capitalize">{tag || s.role?.replace("_", " ")}</p>
+      </div>
+    </label>
+  );
+
+  return (
+    <div>
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-white/30" />
+        <Input value={search} onChange={(e) => onSearch(e.target.value)}
+          placeholder={placeholder || "Search recipients..."}
+          className="pl-9 h-9 text-sm border-white/[0.08] bg-white/[0.03] text-white/90 placeholder:text-white/30" />
+      </div>
+
+      {chips.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {chips.map((s) => (
+            <span key={s.id}
+              className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-full text-[11px] text-white/80 bg-[#e0a84a]/10 border border-[#e0a84a]/25">
+              {s.full_name}
+              <button type="button" onClick={() => onToggle(s.id)}
+                className="p-0.5 rounded-full text-white/50 hover:text-white hover:bg-white/[0.08]">
+                <X className="size-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="max-h-48 overflow-y-auto border border-white/[0.06] rounded-lg p-2 space-y-1 mt-2">
+        {staff.length === 0 && patients.length === 0 ? (
+          <p className="text-xs text-white/30 p-2">No recipients found</p>
+        ) : (
+          <>
+            {staff.length > 0 && (
+              <p className="text-[10px] text-white/40 uppercase tracking-wider px-2 pt-1">Staff</p>
+            )}
+            {staff.map((s) => renderRow(s))}
+            {patients.length > 0 && (
+              <p className="text-[10px] text-white/40 uppercase tracking-wider px-2 pt-2">Patients</p>
+            )}
+            {patients.map((s) => renderRow(s, "Patient"))}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function InternalMailPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("inbox");
@@ -53,6 +141,9 @@ export default function InternalMailPage() {
   const [staffList, setStaffList] = useState<StaffUser[]>([]);
   const [patientList, setPatientList] = useState<StaffUser[]>([]);
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
+  const [ccRecipients, setCcRecipients] = useState<string[]>([]);
+  const [recipientSearch, setRecipientSearch] = useState("");
+  const [ccSearch, setCcSearch] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
@@ -111,6 +202,7 @@ export default function InternalMailPage() {
     if (recipientType === "individual") {
       if (!selectedRecipients.length) { setSendError("Select at least one recipient"); setSending(false); return; }
       payload.recipient_ids = selectedRecipients;
+      payload.cc_ids = ccRecipients.filter((id) => !selectedRecipients.includes(id));
       payload.broadcast = false;
     } else {
       payload.broadcast = true;
@@ -128,6 +220,9 @@ export default function InternalMailPage() {
         setSubject("");
         setBody("");
         setSelectedRecipients([]);
+        setCcRecipients([]);
+        setRecipientSearch("");
+        setCcSearch("");
         setRecipientType("individual");
         setActiveTab("inbox");
         loadInbox();
@@ -169,6 +264,31 @@ export default function InternalMailPage() {
     setSelectedRecipients((prev) =>
       prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]
     );
+  };
+
+  const toggleCc = (uid: string) => {
+    setCcRecipients((prev) =>
+      prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]
+    );
+  };
+
+  const startReply = (msg: InternalMessage) => {
+    if (!msg.sender) return;
+    setRecipientType("individual");
+    setSelectedRecipients([msg.sender.id]);
+    setCcRecipients([]);
+    setRecipientSearch("");
+    setCcSearch("");
+    setSubject(msg.subject.toLowerCase().startsWith("re:") ? msg.subject : `Re: ${msg.subject}`);
+    setBody(
+      `\n\n----- Original message -----\n` +
+      `From: ${msg.sender.full_name}\n` +
+      `Subject: ${msg.subject}\n` +
+      `${msg.body}`
+    );
+    setSendError("");
+    setDetailOpen(false);
+    setActiveTab("compose");
   };
 
   return (
@@ -344,7 +464,7 @@ export default function InternalMailPage() {
                         ? "border-[#e0a84a]/50 bg-[#e0a84a]/10 text-[#e0a84a]"
                         : "border-white/[0.08] text-white/50 hover:border-white/[0.15]"
                     )}>
-                    <UserPlus className="size-3.5" /> Individual Staff
+                    <UserPlus className="size-3.5" /> Individual
                   </button>
                   <button type="button" onClick={() => setRecipientType("staff")}
                     className={cn("flex items-center gap-2 px-3 py-2 rounded-lg border text-xs transition-colors",
@@ -365,62 +485,40 @@ export default function InternalMailPage() {
                 </div>
               </div>
 
-              {/* Individual recipient selector */}
+              {/* TO */}
               {recipientType === "individual" && (
                 <div>
-                  <label className="text-xs text-white/60 mb-1.5 block">Select Recipients</label>
-                  <div className="max-h-64 overflow-y-auto border border-white/[0.06] rounded-lg p-2 space-y-1">
-                    {staffList.length === 0 && patientList.length === 0 ? (
-                      <p className="text-xs text-white/30 p-2">Loading recipients...</p>
-                    ) : (
-                      <>
-                        {staffList.length > 0 && (
-                          <p className="text-[10px] text-white/40 uppercase tracking-wider px-2 pt-1">Staff</p>
-                        )}
-                        {staffList.map((s) => (
-                          <label key={s.id}
-                            className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-white/[0.04] cursor-pointer">
-                            <input type="checkbox" checked={selectedRecipients.includes(s.id)}
-                              onChange={() => toggleRecipient(s.id)}
-                              className="accent-[#e0a84a]" />
-                            <Avatar className="size-6">
-                              <AvatarImage src={s.avatar_url || undefined} />
-                              <AvatarFallback className="text-[9px] bg-white/[0.06] text-white/60">
-                                {s.full_name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?"}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs text-white/80 truncate">{s.full_name}</p>
-                              <p className="text-[10px] text-white/40 capitalize">{s.role?.replace("_", " ")}</p>
-                            </div>
-                          </label>
-                        ))}
-                        {patientList.length > 0 && (
-                          <p className="text-[10px] text-white/40 uppercase tracking-wider px-2 pt-2">Patients</p>
-                        )}
-                        {patientList.map((s) => (
-                          <label key={s.id}
-                            className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-white/[0.04] cursor-pointer">
-                            <input type="checkbox" checked={selectedRecipients.includes(s.id)}
-                              onChange={() => toggleRecipient(s.id)}
-                              className="accent-[#e0a84a]" />
-                            <Avatar className="size-6">
-                              <AvatarImage src={s.avatar_url || undefined} />
-                              <AvatarFallback className="text-[9px] bg-white/[0.06] text-white/60">
-                                {s.full_name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?"}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs text-white/80 truncate">{s.full_name}</p>
-                              <p className="text-[10px] text-white/40 capitalize">Patient</p>
-                            </div>
-                          </label>
-                        ))}
-                      </>
-                    )}
-                  </div>
+                  <label className="text-xs text-white/60 mb-1.5 block">TO:</label>
+                  <RecipientPicker
+                    search={recipientSearch}
+                    onSearch={setRecipientSearch}
+                    selected={selectedRecipients}
+                    onToggle={toggleRecipient}
+                    staffList={staffList}
+                    patientList={patientList}
+                    placeholder="Search recipients by name..."
+                  />
                   {selectedRecipients.length > 0 && (
-                    <p className="text-[10px] text-[#e0a84a] mt-1">{selectedRecipients.length} recipient(s) selected</p>
+                    <p className="text-[10px] text-[#e0a84a] mt-1">{selectedRecipients.length} recipient(s) in TO</p>
+                  )}
+                </div>
+              )}
+
+              {/* CC */}
+              {recipientType === "individual" && (
+                <div>
+                  <label className="text-xs text-white/60 mb-1.5 block">CC:</label>
+                  <RecipientPicker
+                    search={ccSearch}
+                    onSearch={setCcSearch}
+                    selected={ccRecipients}
+                    onToggle={toggleCc}
+                    staffList={staffList.filter((s) => !selectedRecipients.includes(s.id))}
+                    patientList={patientList.filter((s) => !selectedRecipients.includes(s.id))}
+                    placeholder="Search recipients to copy..."
+                  />
+                  {ccRecipients.length > 0 && (
+                    <p className="text-[10px] text-[#e0a84a] mt-1">{ccRecipients.length} recipient(s) in CC</p>
                   )}
                 </div>
               )}
@@ -514,7 +612,13 @@ export default function InternalMailPage() {
               {selectedMsg?.body}
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-2">
+            {selectedMsg?.sender && (
+              <Button onClick={() => startReply(selectedMsg)}
+                className="bg-[#e0a84a] hover:bg-[#e0a84a]/90 text-[#0a0f1a] font-semibold shadow-lg shadow-[#e0a84a]/20 gap-2 mr-auto">
+                <Reply className="size-4" /> Reply
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setDetailOpen(false)}
               className="bg-white text-black border-border hover:bg-gray-100">
               Close

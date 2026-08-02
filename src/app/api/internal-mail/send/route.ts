@@ -5,6 +5,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 export const POST = withAuth(async (req, supabase, authUserId) => {
   const body = await parseBody<{
     recipient_ids?: string[];
+    cc_ids?: string[];
     broadcast?: boolean;
     broadcast_scope?: "staff" | "all";
     subject: string;
@@ -33,6 +34,11 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
     }
   } else if (body.recipient_ids?.length) {
     recipientIds = body.recipient_ids;
+  }
+
+  // CC recipients receive the message in their inbox (and a notification), same as TO
+  if (body.cc_ids?.length) {
+    recipientIds = [...new Set([...recipientIds, ...body.cc_ids])];
   }
 
   if (!recipientIds.length) return err("No recipients specified", 400);

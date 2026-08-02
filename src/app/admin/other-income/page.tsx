@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Plus, Search, Loader2, TrendingUp, Wallet, Calendar, Download,
-  PenLine, Trash2, Gift,
+  PenLine, Trash2, Gift, Eye,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -80,6 +80,7 @@ export default function OtherIncomePage() {
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [showAdd, setShowAdd] = useState(false);
   const [editItem, setEditItem] = useState<IncomeEntry | null>(null);
+  const [viewItem, setViewItem] = useState<IncomeEntry | null>(null);
   const [deleteItem, setDeleteItem] = useState<IncomeEntry | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -309,6 +310,11 @@ export default function OtherIncomePage() {
                       <td className="px-5 py-3 text-white/50 text-xs">{item.source || "—"}</td>
                       <td className="px-5 py-3 text-right">
                         <div className="inline-flex gap-1">
+                          <button onClick={() => setViewItem(item)}
+                            title="View details"
+                            className="h-7 px-2 rounded-lg text-xs text-sky-400/70 hover:text-sky-400 hover:bg-white/[0.06] transition-colors">
+                            <Eye className="size-3.5" />
+                          </button>
                           <button onClick={() => openEdit(item)}
                             className="h-7 px-2 rounded-lg text-xs text-[#e0a84a]/70 hover:text-[#e0a84a] hover:bg-white/[0.06] transition-colors">
                             <PenLine className="size-3.5" />
@@ -393,6 +399,57 @@ export default function OtherIncomePage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Detail */}
+      <Dialog open={!!viewItem} onOpenChange={(o) => { if (!o) setViewItem(null); }}>
+        <DialogContent className="sm:max-w-md border-white/[0.06] bg-[#0d1322]/95 backdrop-blur-xl text-white">
+          <DialogHeader>
+            <DialogTitle className="text-white">Income Entry Details</DialogTitle>
+          </DialogHeader>
+          {viewItem && (
+            <div className="space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">{viewItem.description}</p>
+                  <p className="text-xs text-white/40 mt-0.5">{viewItem.income_date}</p>
+                </div>
+                <p className="text-lg font-bold text-emerald-400">{formatCurrency(viewItem.amount)}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-white/40 font-semibold">Category</p>
+                  <p className="mt-0.5 capitalize text-white/80">{CATEGORIES.find((c) => c.value === viewItem.category)?.label || viewItem.category}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-white/40 font-semibold">Payment Method</p>
+                  <p className="mt-0.5 capitalize text-white/80">{viewItem.payment_method || "—"}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-[10px] uppercase tracking-wider text-white/40 font-semibold">Source / Donor</p>
+                  <p className="mt-0.5 text-white/80">{viewItem.source || "—"}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-[10px] uppercase tracking-wider text-white/40 font-semibold">Notes</p>
+                  <p className="mt-0.5 text-white/80 whitespace-pre-wrap">{viewItem.notes || "—"}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-[10px] uppercase tracking-wider text-white/40 font-semibold">Recorded By</p>
+                  <p className="mt-0.5 text-white/80">
+                    {viewItem.created_by_user
+                      ? `${viewItem.created_by_user.first_name} ${viewItem.created_by_user.last_name}`
+                      : "—"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline" className="bg-white text-black border-border hover:bg-gray-100">Close</Button>
+            </DialogClose>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
