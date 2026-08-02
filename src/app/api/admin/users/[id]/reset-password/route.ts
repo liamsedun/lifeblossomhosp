@@ -48,9 +48,17 @@ export const POST = withAuth(async (req, supabase, authUserId, context) => {
     if (emailError) return err(emailError.message, 500);
   }
 
+  const updatePayload: Record<string, any> = { password: body.password };
+  if (loginEmail) {
+    // Keep the auth account's email in sync with the profile — otherwise the
+    // email login would target a stale email on the auth side.
+    updatePayload.email = loginEmail;
+    updatePayload.email_confirm = true;
+  }
+
   const { error: updateError } = await svc.auth.admin.updateUserById(
     target.id,
-    { password: body.password }
+    updatePayload
   );
 
   if (updateError) {
