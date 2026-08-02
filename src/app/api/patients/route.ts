@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { withAuth, ok, paginated, err, parseBody, getPagination, ValidationError, resolvePatientId, resolveOrgId } from "@/lib/api-utils";
 import { createServiceClient } from "@/lib/supabase/server";
+import { getOrgSettings, generatePatientNumber } from "@/lib/org-settings";
 import { logAudit, logView } from "@/lib/audit";
 
 // GET /api/patients — list patients (patient sees only own, staff sees all in org)
@@ -74,9 +75,9 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
   });
   if (userError) return err(userError.message, 500);
 
-  // Generate patient number
-  const { count } = await supabase.from("patients").select("id", { count: "exact", head: true });
-  const patientNumber = `PT-${String((count || 0) + 1).padStart(4, "0")}`;
+  // Generate patient number using the org's configured prefix (default PT-)
+  const { patientPrefix } = await getOrgSettings(supabase, orgId);
+  const patientNumber = await generatePatientNumber(supabase, orgId, patientPrefix);
 
   // Create patient record
   const patientFields: Record<string, any> = {

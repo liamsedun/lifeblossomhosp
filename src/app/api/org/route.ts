@@ -21,6 +21,8 @@ export const GET = withAuth(async (req, supabase, authUserId) => {
     phone: settings.phone || "",
     email: settings.email || "",
     website: settings.website || "",
+    patientPrefix: settings.patientPrefix || "PT-",
+    dependantPrefix: settings.dependantPrefix || "DEP-",
     settings,
   });
 });
@@ -46,6 +48,8 @@ export const PUT = withAuth(async (req, supabase, authUserId) => {
     phone?: string;
     email?: string;
     website?: string;
+    patientPrefix?: string;
+    dependantPrefix?: string;
   }>(req);
 
   const svc = createServiceClient();
@@ -59,7 +63,10 @@ export const PUT = withAuth(async (req, supabase, authUserId) => {
   if (body.phone !== undefined) settings.phone = body.phone;
   if (body.email !== undefined) settings.email = body.email;
   if (body.website !== undefined) settings.website = body.website;
-  if (Object.keys(updates).length || body.address !== undefined || body.phone !== undefined || body.email !== undefined || body.website !== undefined) {
+  if (body.patientPrefix !== undefined) settings.patientPrefix = body.patientPrefix.trim().toUpperCase() || "PT-";
+  if (body.dependantPrefix !== undefined) settings.dependantPrefix = body.dependantPrefix.trim().toUpperCase() || "DEP-";
+  if (Object.keys(updates).length || body.address !== undefined || body.phone !== undefined || body.email !== undefined || body.website !== undefined
+    || body.patientPrefix !== undefined || body.dependantPrefix !== undefined) {
     updates.settings = settings;
   }
   if (!Object.keys(updates).length) throw new ValidationError("No fields to update");
@@ -82,6 +89,8 @@ export const PUT = withAuth(async (req, supabase, authUserId) => {
     phone: newSettings.phone || "",
     email: newSettings.email || "",
     website: newSettings.website || "",
+    patientPrefix: newSettings.patientPrefix || "PT-",
+    dependantPrefix: newSettings.dependantPrefix || "DEP-",
     settings: newSettings,
   });
 });

@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
+import DoctorNotesSection from "@/components/DoctorNotesSection";
+import MedicalReportsSection from "@/components/MedicalReportsSection";
 import type { Dependant, MedicalRecord, Invoice, Appointment } from "@/lib/api-types";
 import { fileToSquareImage } from "@/lib/avatar-resize";
 
@@ -349,6 +351,29 @@ export default function DependantProfilePage() {
               </GlassCard>
             ))
           )}
+
+          {/* Clinical Notes */}
+          <div className="pt-3">
+            <h3 className="flex items-center gap-2 text-sm font-bold text-white mb-3">
+              <HeartPulse className="w-4 h-4 text-[#e0a84a]" /> Clinical Notes
+            </h3>
+            <DoctorNotesSection
+              patientId={dependantId}
+              patientName={dependant?.full_name}
+            />
+          </div>
+
+          {/* Medical Reports */}
+          <div className="pt-3">
+            <h3 className="flex items-center gap-2 text-sm font-bold text-white mb-3">
+              <ShieldCheck className="w-4 h-4 text-[#e0a84a]" /> Medical Reports
+            </h3>
+            <MedicalReportsSection
+              patientId={dependantId}
+              canWrite={false}
+              patient={{ name: dependant?.full_name || "Dependant", phone: dependant?.phone || undefined }}
+            />
+          </div>
         </div>
       )}
 

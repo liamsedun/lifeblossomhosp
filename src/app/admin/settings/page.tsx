@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Stethoscope, PenLine, Trash2, Plus, KeyRound, Shield, ShieldOff, Landmark, Power } from "lucide-react";
+import { Stethoscope, PenLine, Trash2, Plus, KeyRound, Shield, ShieldOff, Landmark, Power, AlertTriangle, Loader2, Hash, CheckCircle2, RotateCcw } from "lucide-react";
 import { useRoleGuard } from "@/hooks/use-role-guard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,10 +41,20 @@ function getInitials(name: string) {
 }
 
 export default function SettingsPage() {
-  const { authorized } = useRoleGuard(["super_admin", "accountant"]);
+  const { authorized } = useRoleGuard(["super_admin", "admin", "accountant"]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [loading, setLoading] = useState(true);
   const [editDoctor, setEditDoctor] = useState<Doctor | null>(null);
+
+  const [patientPrefix, setPatientPrefix] = useState("PT-");
+  const [dependantPrefix, setDependantPrefix] = useState("DEP-");
+  const [prefixSaving, setPrefixSaving] = useState(false);
+  const [prefixMsg, setPrefixMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const [resetConfirm, setResetConfirm] = useState("");
+  const [resetting, setResetting] = useState(false);
+  const [resetMsg, setResetMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   async function loadDoctors() {
     try {
@@ -60,7 +70,60 @@ export default function SettingsPage() {
 
   useEffect(() => {
     loadDoctors();
+    fetch("/api/org")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success && json.data) {
+          setPatientPrefix(json.data.patientPrefix ?? "PT-");
+          setDependantPrefix(json.data.dependantPrefix ?? "DEP-");
+        }
+      })
+      .catch(() => {});
+    fetch("/api/doctor-notes/check-role")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success) setIsSuperAdmin(json.data?.role === "super_admin");
+      })
+      .catch(() => {});
   }, []);
+
+  async function savePrefixes(e: React.FormEvent) {
+    e.preventDefault();
+    setPrefixMsg(null);
+    setPrefixSaving(true);
+    try {
+      const res = await fetch("/api/org", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patientPrefix, dependantPrefix }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || "Failed to save");
+      setPrefixMsg({ ok: true, text: "Prefixes saved. New patients and dependants will use these." });
+    } catch (err: any) {
+      setPrefixMsg({ ok: false, text: err.message });
+    } finally {
+      setPrefixSaving(false);
+    }
+  }
+
+  async function handleSystemReset(e: React.FormEvent) {
+    e.preventDefault();
+    if (resetConfirm !== "RESET SYSTEM") return;
+    setResetMsg(null);
+    setResetting(true);
+    try {
+      const res = await fetch("/api/system/reset", { method: "POST" });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || "Reset failed");
+      setResetMsg({ ok: true, text: "System reset complete. All entered data has been wiped." });
+      setResetConfirm("");
+    } catch (err: any) {
+      setResetMsg({ ok: false, text: err.message });
+    } finally {
+      setResetting(false);
+    }
+  }
 
   if (!authorized) return null;
   return (
@@ -78,6 +141,8 @@ export default function SettingsPage() {
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="bank-accounts">Bank Accounts</TabsTrigger>
           <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="prefixes">ID Prefixes</TabsTrigger>
+          {isSuperAdmin && <TabsTrigger value="system-reset">System Reset</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="doctors">
@@ -162,6 +227,109 @@ export default function SettingsPage() {
 
         <TabsContent value="general">
           <HospitalInfoTab />
+        </TabsContent>
+
+        <TabsContent value="prefixes">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Hash className="w-4 h-4 text-primary" /> Patient / Dependant ID Prefixes
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={savePrefixes} className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-foreground">Patient ID Prefix</label>
+                    <Input
+                      value={patientPrefix}
+                      onChange={(e) => setPatientPrefix(e.target.value)}
+                      placeholder="e.g. PT-"
+                      maxLength={12}
+                    />
+                    <p className="text-xs text-text-secondary">
+                      Current patients are not re-numbered. New patients get this prefix (e.g. PT-0001).
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-foreground">Dependant ID Prefix</label>
+                    <Input
+                      value={dependantPrefix}
+                      onChange={(e) => setDependantPrefix(e.target.value)}
+                      placeholder="e.g. DEP-"
+                      maxLength={12}
+                    />
+                    <p className="text-xs text-text-secondary">
+                      New dependants get this prefix (e.g. DEP-0001).
+                    </p>
+                  </div>
+                </div>
+                {prefixMsg && (
+                  <div className={`text-sm px-3 py-2 rounded-lg border ${prefixMsg.ok ? "text-emerald-600 border-emerald-200 bg-emerald-50" : "text-rose-600 border-rose-200 bg-rose-50"}`}>
+                    {prefixMsg.ok ? <CheckCircle2 className="w-4 h-4 inline mr-1.5" /> : <AlertTriangle className="w-4 h-4 inline mr-1.5" />}
+                    {prefixMsg.text}
+                  </div>
+                )}
+                <Button type="submit" disabled={prefixSaving}>
+                  {prefixSaving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                  Save Prefixes
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="system-reset">
+          {isSuperAdmin && (
+            <Card className="border-rose-200">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2 text-rose-600">
+                <RotateCcw className="w-4 h-4" /> Reset System
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 space-y-2">
+                <p className="font-semibold flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" /> This permanently wipes all entered data.
+                </p>
+                <ul className="list-disc pl-5 space-y-1 text-rose-600">
+                  <li>All patients, staff, users, appointments and clinical records</li>
+                  <li>All invoices, payments, expenses and other financial data</li>
+                  <li>All chat messages, notifications and audit logs</li>
+                </ul>
+                <p className="text-rose-600">
+                  Your hospital name, logo, bank accounts, doctors and system features are kept.
+                  Only the super admin account survives. This cannot be undone.
+                </p>
+              </div>
+              <form onSubmit={handleSystemReset} className="space-y-3">
+                <label className="block text-sm font-medium text-foreground">
+                  Type <span className="font-bold">RESET SYSTEM</span> to confirm
+                </label>
+                <Input
+                  value={resetConfirm}
+                  onChange={(e) => setResetConfirm(e.target.value)}
+                  placeholder="RESET SYSTEM"
+                  className="max-w-xs"
+                />
+                {resetMsg && (
+                  <div className={`text-sm px-3 py-2 rounded-lg border max-w-lg ${resetMsg.ok ? "text-emerald-600 border-emerald-200 bg-emerald-50" : "text-rose-600 border-rose-200 bg-rose-50"}`}>
+                    {resetMsg.ok ? <CheckCircle2 className="w-4 h-4 inline mr-1.5" /> : <AlertTriangle className="w-4 h-4 inline mr-1.5" />}
+                    {resetMsg.text}
+                  </div>
+                )}
+                <Button
+                  type="submit"
+                  variant="destructive"
+                  disabled={resetConfirm !== "RESET SYSTEM" || resetting}
+                >
+                  {resetting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                  {resetting ? "Resetting…" : "Reset System"}
+                </Button>
+              </form>
+            </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>

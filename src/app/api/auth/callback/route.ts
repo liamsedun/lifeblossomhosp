@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { getOrgSettings, generatePatientNumber } from "@/lib/org-settings";
 
 export async function GET(req: NextRequest) {
   const { searchParams, origin } = new URL(req.url);
@@ -41,14 +42,12 @@ export async function GET(req: NextRequest) {
           phone: authUser.phone || null,
         });
         if (!insErr) {
-          // Create patient record
-          const { data: count } = await svc
-            .from("patients")
-            .select("id", { count: "exact", head: true })
-            .eq("org_id", "a0000000-0000-0000-0000-000000000001");
-          const patientNumber = `PT-${String((count?.length || 0) + 1).padStart(4, "0")}`;
+          // Create patient record with the org's configured prefix (default PT-)
+          const orgId = "a0000000-0000-0000-0000-000000000001";
+          const settings = await getOrgSettings(svc, orgId);
+          const patientNumber = await generatePatientNumber(svc, orgId, settings.patientPrefix);
           await svc.from("patients").insert({
-            org_id: "a0000000-0000-0000-0000-000000000001",
+            org_id: orgId,
             user_id: authUser.id,
             patient_number: patientNumber,
           });

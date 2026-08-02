@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { getOrgSettings, generatePatientNumber } from "@/lib/org-settings";
 
 /**
  * POST /api/auth/register
@@ -81,12 +82,8 @@ export async function POST(req: NextRequest) {
 
     // 3. Create specialty record based on role
     if (targetRole === "patient") {
-      const { data: count } = await svc
-        .from("patients")
-        .select("id", { count: "exact", head: true })
-        .eq("org_id", orgId);
-
-      const patientNumber = `PT-${String((count?.length || 0) + 1).padStart(4, "0")}`;
+      const settings = await getOrgSettings(svc, orgId);
+      const patientNumber = await generatePatientNumber(svc, orgId, settings.patientPrefix);
 
       const { error: ptError } = await svc.from("patients").insert({
         org_id: orgId,

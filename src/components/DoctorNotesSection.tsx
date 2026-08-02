@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import {
-  Plus, Loader2, FileText, ChevronDown, ChevronUp,
+  Plus, Loader2, FileText, ChevronDown, ChevronUp, Download,
   Calendar, User, Activity, TestTube, Stethoscope,
   Pill, HeartPulse, ClipboardList,
 } from "lucide-react";
@@ -19,6 +19,7 @@ import type { DoctorNote, DoctorNoteVitals, DoctorNoteTests, DoctorNoteDiagnosis
 
 interface DoctorNotesSectionProps {
   patientId: string;
+  patientName?: string;
 }
 
 type NoteForm = {
@@ -273,7 +274,11 @@ function MedicationRow({ med, index, onChange, onRemove }: {
   );
 }
 
-export default function DoctorNotesSection({ patientId }: DoctorNotesSectionProps) {
+function escHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+export default function DoctorNotesSection({ patientId, patientName }: DoctorNotesSectionProps) {
   const [notes, setNotes] = useState<DoctorNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -281,10 +286,18 @@ export default function DoctorNotesSection({ patientId }: DoctorNotesSectionProp
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<NoteForm>(emptyForm);
   const [isClinician, setIsClinician] = useState(false);
+  const [canReadNotes, setCanReadNotes] = useState(false);
+  const [org, setOrg] = useState<{ name: string; logo_url: string | null; address: string; phone: string; email: string; website: string }>({
+    name: "", logo_url: null, address: "", phone: "", email: "", website: "",
+  });
 
   useEffect(() => {
     loadNotes();
     checkRole();
+    fetch("/api/org")
+      .then((r) => r.json())
+      .then((json) => { if (json.success) setOrg(json.data); })
+      .catch(() => {});
   }, [patientId]);
 
   async function checkRole() {
@@ -295,8 +308,49 @@ export default function DoctorNotesSection({ patientId }: DoctorNotesSectionProp
         const res = await fetch("/api/doctor-notes/check-role");
         const json = await res.json();
         setIsClinician(json.data?.isClinician || false);
+        setCanReadNotes(json.data?.canReadNotes || false);
       }
     } catch { /* read-only fallback */ }
+  }
+
+  function printNotes() {
+    const win = window.open("", "_blank", "width=820,height=1050");
+    if (!win) { alert("Please allow pop-ups to print the clinical notes."); return; }
+    const orgName = escHtml(org.name || "Life Blossom Hospital");
+    const contact = [org.phone && `Tel: ${escHtml(org.phone)}`, org.email && `Email: ${escHtml(org.email)}`, org.website && escHtml(org.website)].filter(Boolean).join(" • ");
+    const cards = notes.map((n) => {
+      const v = n.vitals || {};
+      const t = n.tests_procedures || {};
+      const d = n.diagnosis || {};
+      const vitals = Object.entries(v).filter(([, val]) => val).map(([k, val]) => `<p><strong>${k.replace(/_/g, " ")}:</strong> ${escHtml(String(val))}</p>`).join("");
+      const tests = Object.entries(t).filter(([, val]) => val).map(([k, val]) => `<p><strong>${k.replace(/_/g, " ")}:</strong> ${escHtml(String(val))}</p>`).join("");
+      return `<div style="page-break-inside: avoid; border: 1px solid #888; padding: 14px 16px; margin: 14px 0;">
+        <p style="margin:0 0 4px;"><strong>Visit — ${escHtml(formatDate(n.visit_date))}</strong>${n.doctor?.user ? ` &nbsp;•&nbsp; ${escHtml(n.doctor.user.first_name)} ${escHtml(n.doctor.user.last_name)}` : ""}</p>
+        ${vitals ? `<p style="margin:6px 0 2px;"><strong>Vitals:</strong></p>${vitals}` : ""}
+        ${tests ? `<p style="margin:6px 0 2px;"><strong>Tests / Procedures:</strong></p>${tests}` : ""}
+        ${n.clinical_findings ? `<p style="margin:6px 0 2px;"><strong>Clinical Findings:</strong></p><p style="white-space:pre-wrap; margin:0;">${escHtml(n.clinical_findings)}</p>` : ""}
+        ${d.primary ? `<p style="margin:6px 0 2px;"><strong>Diagnosis:</strong> ${escHtml(d.primary)}</p>` : ""}
+        ${n.medications?.length ? `<p style="margin:6px 0 2px;"><strong>Medications:</strong></p><p style="margin:0;">${n.medications.map((m) => `${escHtml(m.drug_name)} — ${escHtml(m.dosage || "")} ${escHtml(m.frequency || "")} ${escHtml(m.duration || "")}`).join("; ")}</p>` : ""}
+        ${n.treatment_recommendations ? `<p style="margin:6px 0 2px;"><strong>Treatment / Recommendations:</strong></p><p style="white-space:pre-wrap; margin:0;">${escHtml(n.treatment_recommendations)}</p>` : ""}
+        ${n.next_visit_date ? `<p style="margin:6px 0 0;"><strong>Next Visit:</strong> ${escHtml(formatDate(n.next_visit_date))}</p>` : ""}
+      </div>`;
+    }).join("");
+    const html = `<!doctype html><html><head><meta charset="utf-8" /><title>Clinical Notes</title>
+<style>body{font-family:Georgia,'Times New Roman',serif;color:#111;margin:32px;font-size:12px;}</style></head><body>
+<div style="text-align:center;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:16px;">
+  ${org.logo_url ? `<img src="${escHtml(org.logo_url)}" style="max-height:52px;object-fit:contain;" /><br/>` : ""}
+  <strong style="font-size:17px;letter-spacing:1px;text-transform:uppercase;">${orgName}</strong>
+  ${org.address ? `<div style="font-size:11px;color:#333;">${escHtml(org.address)}</div>` : ""}
+  ${contact ? `<div style="font-size:11px;color:#333;">${contact}</div>` : ""}
+</div>
+<div style="text-align:center;font-size:15px;font-weight:800;letter-spacing:2px;text-transform:uppercase;">Clinical Notes</div>
+${patientName ? `<p style="text-align:center;font-size:12px;color:#333;margin:4px 0 10px;"><strong>Patient:</strong> ${escHtml(patientName)}</p>` : ""}
+${cards}
+<div style="margin-top:24px;font-size:10px;color:#444;border-top:1px solid #999;padding-top:8px;text-align:center;">Confidential patient information — issued by ${orgName}.</div>
+<script>window.onload=function(){window.focus();setTimeout(function(){window.print();},250);};</script>
+</body></html>`;
+    win.document.write(html);
+    win.document.close();
   }
 
   async function loadNotes() {
@@ -383,12 +437,20 @@ export default function DoctorNotesSection({ patientId }: DoctorNotesSectionProp
         <p className="text-xs text-white/50">
           {notes.length} clinical note{notes.length !== 1 ? "s" : ""} on record
         </p>
-        {isClinician && (
-          <Button onClick={() => setShowForm(true)} size="sm"
-            className="h-7 text-xs bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] font-semibold border-0">
-            <Plus className="size-3 mr-1" />New Note
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {canReadNotes && notes.length > 0 && (
+            <Button onClick={printNotes} size="sm" variant="ghost"
+              className="h-7 text-xs text-[#e0a84a]/70 hover:text-[#e0a84a]">
+              <Download className="size-3 mr-1" />Download / Print
+            </Button>
+          )}
+          {isClinician && (
+            <Button onClick={() => setShowForm(true)} size="sm"
+              className="h-7 text-xs bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] font-semibold border-0">
+              <Plus className="size-3 mr-1" />New Note
+            </Button>
+          )}
+        </div>
       </div>
 
       {error && <p className="text-xs text-red-400">{error}</p>}

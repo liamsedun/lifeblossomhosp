@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search, Plus, Eye, MoreHorizontal, Phone, Mail,
@@ -22,6 +22,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { cn, formatDate } from "@/lib/utils";
 import { usePatients, useCreatePatient } from "@/hooks/use-patients";
 import DoctorNotesSection from "@/components/DoctorNotesSection";
+import MedicalReportsSection from "@/components/MedicalReportsSection";
 import type { Patient } from "@/lib/api-types";
 
 interface PatientForm {
@@ -58,11 +59,22 @@ export default function PatientsPage() {
   const [editPatient, setEditPatient] = useState<Patient | null>(null);
   const [deletePatient, setDeletePatient] = useState<Patient | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [canWriteReports, setCanWriteReports] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<PatientForm>(emptyForm);
   const [formError, setFormError] = useState("");
 
   function resetForm() { setForm(emptyForm); setFormError(""); }
+
+  useEffect(() => {
+    // Only doctors and the super admin can write medical reports
+    fetch("/api/doctor-notes/check-role")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success) setCanWriteReports(json.data?.role === "doctor" || json.data?.role === "super_admin");
+      })
+      .catch(() => {});
+  }, []);
 
   const filtered = useMemo(() => {
     if (!patientsData) return [];
@@ -285,6 +297,9 @@ export default function PatientsPage() {
                 <TabsTrigger value="clinical-notes" className="text-xs data-[state=active]:bg-white/[0.08] data-[state=active]:text-white text-white/50">
                   <FileText className="size-3.5 mr-1" />Clinical Notes
                 </TabsTrigger>
+                <TabsTrigger value="medical-reports" className="text-xs data-[state=active]:bg-white/[0.08] data-[state=active]:text-white text-white/50">
+                  <FileText className="size-3.5 mr-1" />Medical Reports
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="info" className="mt-4">
@@ -338,7 +353,27 @@ export default function PatientsPage() {
               </TabsContent>
 
               <TabsContent value="clinical-notes" className="mt-4">
-                <DoctorNotesSection patientId={selectedPatient.id} />
+                <DoctorNotesSection
+                  patientId={selectedPatient.id}
+                  patientName={selectedPatient.user ? `${selectedPatient.user.first_name} ${selectedPatient.user.last_name}` : undefined}
+                />
+                <DialogFooter className="mt-4 pt-4 border-t border-white/[0.06]">
+                  <DialogClose asChild>
+                    <Button variant="outline" className="bg-white text-black border-border hover:bg-gray-100">Close</Button>
+                  </DialogClose>
+                </DialogFooter>
+              </TabsContent>
+
+              <TabsContent value="medical-reports" className="mt-4">
+                <MedicalReportsSection
+                  patientId={selectedPatient.id}
+                  canWrite={canWriteReports}
+                  patient={{
+                    name: selectedPatient.user ? `${selectedPatient.user.first_name} ${selectedPatient.user.last_name}` : "Patient",
+                    address: [selectedPatient.address, selectedPatient.city, selectedPatient.state].filter(Boolean).join(", ") || undefined,
+                    phone: selectedPatient.user?.phone || undefined,
+                  }}
+                />
                 <DialogFooter className="mt-4 pt-4 border-t border-white/[0.06]">
                   <DialogClose asChild>
                     <Button variant="outline" className="bg-white text-black border-border hover:bg-gray-100">Close</Button>

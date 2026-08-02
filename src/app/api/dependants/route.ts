@@ -5,6 +5,7 @@ import {
 } from "@/lib/api-utils";
 import { createServiceClient } from "@/lib/supabase/server";
 import { storeDependantAvatar } from "@/lib/dependant-avatar";
+import { getOrgSettings, generatePatientNumber } from "@/lib/org-settings";
 import { logAudit, logView } from "@/lib/audit";
 import type { Dependant } from "@/lib/api-types";
 
@@ -225,9 +226,9 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
     .single();
   if (userError) return err(userError.message, 500);
 
-  // Unique patient number (per org): DEP-XXXX
-  const { count: allPatients } = await svc.from("patients").select("id", { count: "exact", head: true });
-  const patientNumber = `DEP-${String((allPatients || 0) + 1).padStart(4, "0")}`;
+  // Unique patient number (per org) using the configured dependant prefix (default DEP-)
+  const settings = await getOrgSettings(svc, orgId);
+  const patientNumber = await generatePatientNumber(svc, orgId, settings.dependantPrefix);
 
   const { data: created, error: patientError } = await svc
     .from("patients")

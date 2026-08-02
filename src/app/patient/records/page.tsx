@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { FileText, HeartPulse, FlaskRound, Pill, ChevronDown, ChevronUp, Calendar, User, Stethoscope, Syringe, Scan } from "lucide-react";
+import { useState, useEffect } from "react";
+import { FileText, HeartPulse, FlaskRound, Pill, ChevronDown, ChevronUp, Calendar, User, Stethoscope, Syringe, Scan, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMedicalRecords } from "@/hooks/use-medical-records";
+import DoctorNotesSection from "@/components/DoctorNotesSection";
+import MedicalReportsSection from "@/components/MedicalReportsSection";
 import type { MedicalRecord } from "@/lib/api-types";
 
 const typeConfig: Record<string, { icon: React.ElementType; color: string; bg: string }> = {
@@ -27,6 +29,24 @@ const typeLabels: Record<string, string> = {
 export default function RecordsPage() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const { data: records, loading } = useMedicalRecords();
+  const [ownPatient, setOwnPatient] = useState<{ id: string; name: string; address?: string; phone?: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/patients")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success && json.data?.[0]) {
+          const p = json.data[0];
+          setOwnPatient({
+            id: p.id,
+            name: p.user ? `${p.user.first_name} ${p.user.last_name}` : "Patient",
+            address: [p.address, p.city, p.state].filter(Boolean).join(", ") || undefined,
+            phone: p.user?.phone || undefined,
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const toggle = (id: string) => {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -136,6 +156,26 @@ export default function RecordsPage() {
           <p className="text-sm text-white/40">No medical records found.</p>
         </div>
       )}
+
+      {/* Clinical Notes */}
+      <div className="pt-2">
+        <h3 className="flex items-center gap-2 text-lg font-bold text-white mb-3">
+          <HeartPulse className="w-5 h-5 text-[#e0a84a]" /> Clinical Notes
+        </h3>
+        {ownPatient && (
+          <DoctorNotesSection patientId={ownPatient.id} patientName={ownPatient.name} />
+        )}
+      </div>
+
+      {/* Medical Reports */}
+      <div className="pt-2">
+        <h3 className="flex items-center gap-2 text-lg font-bold text-white mb-3">
+          <ShieldCheck className="w-5 h-5 text-[#e0a84a]" /> Medical Reports
+        </h3>
+        {ownPatient && (
+          <MedicalReportsSection patientId={ownPatient.id} patient={ownPatient} canWrite={false} />
+        )}
+      </div>
     </div>
   );
 }
