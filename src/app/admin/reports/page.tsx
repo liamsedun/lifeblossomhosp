@@ -29,6 +29,69 @@ interface OtherIncomeRecord {
   income_date: string;
 }
 
+interface ExpenseRecord {
+  id: string;
+  description: string;
+  category: string;
+  amount: number;
+  expense_date: string;
+}
+
+interface OrgInfo {
+  name: string;
+  logo_url: string | null;
+  address: string;
+  phone: string;
+  email: string;
+  website: string;
+}
+
+const EXPENSE_LINES = [
+  "Medical Expenses",
+  "Other Medical Expenses",
+  "Staff Salary",
+  "Electricity (PHCN)",
+  "Motor Vehicle Maintenance (Fuel & Repairs)",
+  "Generator (Fuel & Repairs)",
+  "Stationeries & Printing",
+  "Janitorial/Cleaning",
+  "Internet",
+  "Telephone",
+  "Rents & Rates",
+  "Bank Charges",
+  "Travelling/Transportation",
+  "Newspapers/Medical Journals",
+  "Other Misc. Expenses",
+];
+
+function expenseLineFor(e: ExpenseRecord): string {
+  const desc = (e.description || "").toLowerCase();
+  const cat = e.category || "";
+  if (/(generator|diesel|petrol)/.test(desc)) return "Generator (Fuel & Repairs)";
+  if (/(internet|wifi|data)/.test(desc)) return "Internet";
+  if (/(telephone|airtime)/.test(desc)) return "Telephone";
+  if (/(stationer|printing|printer|paper|ink)/.test(desc)) return "Stationeries & Printing";
+  if (/(janitor|cleaning|cleaner|sanitiz|sanitise|housekeeping)/.test(desc)) return "Janitorial/Cleaning";
+  if (/(bank charge|banking|pos fee|pos charge|card fee|transaction fee)/.test(desc)) return "Bank Charges";
+  if (/(newspaper|journal|magazine)/.test(desc)) return "Newspapers/Medical Journals";
+  if (/(vehicle|car repair|fuel for car|motor repair)/.test(desc)) return "Motor Vehicle Maintenance (Fuel & Repairs)";
+  if (/(travel|transport|fare|travelling)/.test(desc)) return "Travelling/Transportation";
+  switch (cat) {
+    case "medical_supplies": return "Medical Expenses";
+    case "equipment": return "Other Medical Expenses";
+    case "salaries": return "Staff Salary";
+    case "utilities": return "Electricity (PHCN)";
+    case "rent": return "Rents & Rates";
+    case "maintenance": return "Motor Vehicle Maintenance (Fuel & Repairs)";
+    case "transport": return "Travelling/Transportation";
+    default: return "Other Misc. Expenses";
+  }
+}
+
+function fmtPeriodDate(d: string): string {
+  return new Date(`${d}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
 const CHART_COLORS = ["#e0a84a", "#16A34A", "#0891B2", "#F39C12", "#E74C3C", "#8B5CF6", "#6366F1", "#EC4898"];
 
 function escapeCsv(val: string | number): string {
@@ -58,6 +121,11 @@ export default function ReportsPage() {
   const { data: staff, loading: staffLoading } = useStaff();
   const [otherIncomeData, setOtherIncomeData] = useState<OtherIncomeRecord[]>([]);
   const [loadingOtherIncome, setLoadingOtherIncome] = useState(true);
+  const [expensesData, setExpensesData] = useState<ExpenseRecord[]>([]);
+  const [loadingExpenses, setLoadingExpenses] = useState(true);
+  const [orgInfo, setOrgInfo] = useState<OrgInfo | null>(null);
+  const [pnlFrom, setPnlFrom] = useState("");
+  const [pnlTo, setPnlTo] = useState("");
   const loading = aptLoading || patLoading || invLoading || staffLoading || loadingOtherIncome;
 
   const now = new Date();
@@ -79,6 +147,31 @@ export default function ReportsPage() {
       .catch(() => {})
       .finally(() => setLoadingOtherIncome(false));
   }, []);
+
+  useEffect(() => {
+    fetch("/api/org")
+      .then((r) => r.json())
+      .then((json) => { if (json.success) setOrgInfo(json.data); })
+      .catch(() => {});
+  }, []);
+
+  // P&L period defaults to the selected month (resets when the month picker changes)
+  useEffect(() => {
+    const [y, m] = month.split("-").map(Number);
+    const lastDay = new Date(y, m, 0).getDate();
+    setPnlFrom(`${y}-${String(m).padStart(2, "0")}-01`);
+    setPnlTo(`${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`);
+  }, [month]);
+
+  useEffect(() => {
+    if (!pnlFrom || !pnlTo) return;
+    setLoadingExpenses(true);
+    fetch(`/api/expenses?from=${pnlFrom}&to=${pnlTo}&page_size=500`)
+      .then((r) => r.json())
+      .then((json) => { if (json.success) setExpensesData(json.data || []); })
+      .catch(() => setExpensesData([]))
+      .finally(() => setLoadingExpenses(false));
+  }, [pnlFrom, pnlTo]);
 
   const kpis = useMemo(() => {
     const [y, m] = month.split("-").map(Number);
@@ -176,6 +269,41 @@ export default function ReportsPage() {
     return items;
   }, [patients, appointments, invoices, staff]);
 
+  const pnl = useMemo(() => {
+    if (!pnlFrom || !pnlTo) return null;
+    const start = new Date(`${pnlFrom}T00:00:00`);
+    const end = new Date(`${pnlTo}T23:59:59`);
+    const inPeriod = (d: string) => {
+      const dt = new Date(d);
+      return dt >= start && dt <= end;
+    };
+
+    const medRev = (invoices || [])
+      .filter((i) => (i.status === "paid" || i.status === "partially_paid") && inPeriod(i.issue_date))
+      .reduce((sum, i) => sum + i.total_amount, 0);
+    const othRev = otherIncomeData
+      .filter((r) => inPeriod(r.income_date))
+      .reduce((sum, r) => sum + r.amount, 0);
+
+    const totals: Record<string, number> = {};
+    EXPENSE_LINES.forEach((l) => { totals[l] = 0; });
+    expensesData.forEach((e) => {
+      const line = expenseLineFor(e);
+      totals[line] = (totals[line] || 0) + Number(e.amount || 0);
+    });
+
+    const totalExpenses = Object.values(totals).reduce((s, v) => s + v, 0);
+    const totalIncome = medRev + othRev;
+    return {
+      medRev,
+      othRev,
+      totalIncome,
+      lines: EXPENSE_LINES.map((label) => ({ label, amount: totals[label] || 0 })),
+      totalExpenses,
+      net: totalIncome - totalExpenses,
+    };
+  }, [invoices, otherIncomeData, expensesData, pnlFrom, pnlTo]);
+
   const exportCsv = useCallback(() => {
     const rows: string[][] = [
       ["Life Blossom Hospital — Performance Report"],
@@ -196,12 +324,25 @@ export default function ReportsPage() {
       [""],
       ["Department", "Appointments"],
       ...deptPieData.map((d) => [d.name, String(d.value)]),
+      ...(pnl ? [
+        [""],
+        ["PROFIT AND LOSS STATEMENT"],
+        ["Period", `From ${fmtPeriodDate(pnlFrom)} to ${fmtPeriodDate(pnlTo)}`],
+        ["Revenue from Medical Services", String(pnl.medRev)],
+        ["Other Incomes", String(pnl.othRev)],
+        ["Total Income", String(pnl.totalIncome)],
+        [""],
+        ["Less: Expenses"],
+        ...pnl.lines.map((l) => [l.label, String(l.amount)]),
+        ["Total Expenses", String(pnl.totalExpenses)],
+        ["NET PROFIT/(LOSS) FOR THE PERIOD", String(pnl.net)],
+      ] : []),
       [""],
       ["Recent Activity", "Detail", "Time"],
       ...recentActivity.map((a) => [a.action, a.detail, a.time]),
     ];
     downloadCsv(`hospital-report-${new Date().toISOString().split("T")[0]}.csv`, rows);
-  }, [kpis, revenueTrendData, deptPieData, recentActivity, staff, patients, appointments, monthLabel]);
+  }, [kpis, revenueTrendData, deptPieData, recentActivity, staff, patients, appointments, monthLabel, pnl, pnlFrom, pnlTo]);
 
   if (loading) {
     return (
@@ -329,6 +470,107 @@ export default function ReportsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Profit & Loss Statement */}
+      <Card className="border-white/[0.06] bg-white/[0.03] backdrop-blur-xl print:border-gray-300 print:bg-white">
+        <CardHeader className="pb-2 flex flex-row items-center justify-between flex-wrap gap-3 print:hidden">
+          <CardTitle className="text-base text-white">Profit &amp; Loss Statement</CardTitle>
+          <div className="flex items-center gap-2 flex-wrap">
+            <input type="date" value={pnlFrom} onChange={(e) => e.target.value && setPnlFrom(e.target.value)}
+              className="h-9 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 text-xs text-white [color-scheme:dark] focus:outline-none focus:border-[#e0a84a]/40"
+              aria-label="P&L from date" />
+            <span className="text-xs text-white/40">to</span>
+            <input type="date" value={pnlTo} onChange={(e) => e.target.value && setPnlTo(e.target.value)}
+              className="h-9 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 text-xs text-white [color-scheme:dark] focus:outline-none focus:border-[#e0a84a]/40"
+              aria-label="P&L to date" />
+            <Button size="sm" className="h-9 bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] font-semibold border-0 shadow-lg shadow-[#e0a84a]/20"
+              onClick={() => window.print()}>
+              <Printer className="size-4" />Print P&L
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-5 print:p-0">
+          {loadingExpenses ? (
+            <div className="flex justify-center py-10"><Loader2 className="size-5 animate-spin text-[#e0a84a]" /></div>
+          ) : pnl ? (
+            <div className="print:text-black">
+              {/* Hospital header */}
+              <div className="flex items-center gap-4 mb-5 print:mb-4">
+                {orgInfo?.logo_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={orgInfo.logo_url} alt={orgInfo.name || "Hospital logo"}
+                    className="h-14 w-14 object-contain rounded-lg print:h-12 print:w-12" />
+                ) : (
+                  <div className="h-14 w-14 rounded-lg bg-[#e0a84a]/15 border border-[#e0a84a]/20 flex items-center justify-center text-[#e0a84a] font-bold text-lg print:bg-gray-100 print:border-gray-300 print:text-gray-700">
+                    {(orgInfo?.name || "L")[0]}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="text-base font-bold text-white uppercase leading-tight print:text-gray-900">
+                    {orgInfo?.name || "Life Blossom Hospital"}
+                  </p>
+                  {orgInfo?.address && (
+                    <p className="text-xs text-white/50 mt-0.5 print:text-gray-600">{orgInfo.address}</p>
+                  )}
+                  <p className="text-[11px] text-white/40 mt-0.5 print:text-gray-500">
+                    {[orgInfo?.phone && `Tel: ${orgInfo.phone}`, orgInfo?.email && `Email: ${orgInfo.email}`, orgInfo?.website && orgInfo.website]
+                      .filter(Boolean).join(" • ")}
+                  </p>
+                </div>
+              </div>
+
+              {/* Statement title */}
+              <div className="text-center mb-5">
+                <p className="text-lg font-bold text-white print:text-gray-900">PROFIT AND LOSS STATEMENT</p>
+                <p className="text-xs text-white/50 mt-1 print:text-gray-600">
+                  For the period from {fmtPeriodDate(pnlFrom)} to {fmtPeriodDate(pnlTo)}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-white/[0.08] print:border-gray-300 overflow-hidden">
+                <table className="w-full text-sm">
+                  <tbody className="divide-y divide-white/[0.05] print:divide-gray-200">
+                    <tr>
+                      <td className="px-4 py-2.5 text-white/80 print:text-gray-800">Revenue from Medical Services</td>
+                      <td className="px-4 py-2.5 text-right text-white print:text-gray-900 font-medium">{formatCurrency(pnl.medRev)}</td>
+                    </tr>
+                    <tr>
+                      <td className="px-4 py-2.5 text-white/80 print:text-gray-800">Other Incomes</td>
+                      <td className="px-4 py-2.5 text-right text-white print:text-gray-900 font-medium">{formatCurrency(pnl.othRev)}</td>
+                    </tr>
+                    <tr className="bg-white/[0.04] print:bg-gray-50">
+                      <td className="px-4 py-2.5 font-bold text-white print:text-gray-900">Total Income</td>
+                      <td className="px-4 py-2.5 text-right font-bold text-white print:text-gray-900 border-t-2 border-white/20 print:border-gray-400">{formatCurrency(pnl.totalIncome)}</td>
+                    </tr>
+                    <tr>
+                      <td className="px-4 py-2.5 text-white/60 italic print:text-gray-700" colSpan={2}>Less: Expenses</td>
+                    </tr>
+                    {pnl.lines.map((l) => (
+                      <tr key={l.label}>
+                        <td className="px-4 py-2 pl-8 text-white/80 print:text-gray-800">{l.label}</td>
+                        <td className="px-4 py-2 text-right text-white print:text-gray-900">{formatCurrency(l.amount)}</td>
+                      </tr>
+                    ))}
+                    <tr className="bg-white/[0.04] print:bg-gray-50">
+                      <td className="px-4 py-2.5 font-bold text-white print:text-gray-900">Total Expenses</td>
+                      <td className="px-4 py-2.5 text-right font-bold text-white print:text-gray-900 border-t-2 border-white/20 print:border-gray-400">{formatCurrency(pnl.totalExpenses)}</td>
+                    </tr>
+                    <tr className="print:bg-gray-100">
+                      <td className="px-4 py-3 font-extrabold text-[#e0a84a] print:text-gray-900">NET PROFIT/(LOSS) FOR THE PERIOD</td>
+                      <td className={cn("px-4 py-3 text-right font-extrabold border-t-2 border-b-2 border-[#e0a84a]/40 print:border-gray-400",
+                        pnl.net >= 0 ? "text-emerald-400 print:text-gray-900" : "text-rose-400 print:text-gray-900")}>
+                        {formatCurrency(pnl.net)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div className="py-10 text-center text-sm text-white/40">Select a period to view the P&amp;L statement.</div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Recent activity */}
       <Card className="border-white/[0.06] bg-white/[0.03] backdrop-blur-xl print:border-gray-300 print:bg-white">

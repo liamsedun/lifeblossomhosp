@@ -110,6 +110,7 @@ export interface Staff {
   is_available: boolean;
   available_from: string | null;
   available_until: string | null;
+  on_leave_until: string | null;
   created_at: string;
   updated_at: string;
   user?: User;
