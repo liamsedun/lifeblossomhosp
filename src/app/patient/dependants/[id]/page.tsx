@@ -11,6 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import type { Dependant, MedicalRecord, Invoice, Appointment } from "@/lib/api-types";
+import { fileToSquareImage } from "@/lib/avatar-resize";
 
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 const GENOTYPES = ["AA", "AS", "SS", "AC", "SC", "CC"];
@@ -518,7 +519,7 @@ function EditDependantModal({ open, dependant, onClose, onSaved }: {
     }
   }, [open, dependant]);
 
-  const onAvatarPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onAvatarPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
@@ -530,9 +531,14 @@ function EditDependantModal({ open, dependant, onClose, onSaved }: {
       setError("Photo must be 2 MB or smaller");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => setAvatar(String(reader.result || ""));
-    reader.readAsDataURL(file);
+    try {
+      const resized = await fileToSquareImage(file);
+      const reader = new FileReader();
+      reader.onload = () => setAvatar(String(reader.result || ""));
+      reader.readAsDataURL(resized);
+    } catch {
+      setError("Could not process the photo");
+    }
   };
 
   if (!open || !dependant) return null;

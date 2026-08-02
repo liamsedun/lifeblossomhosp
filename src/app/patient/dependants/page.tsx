@@ -9,6 +9,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
+import { fileToSquareImage } from "@/lib/avatar-resize";
 import type { Dependant } from "@/lib/api-types";
 
 const MAX_DEPENDANTS = 5;
@@ -76,7 +77,7 @@ function AddDependantModal({ open, onClose, onCreated, maxReached }: {
     }
   }, [open]);
 
-  const onAvatarPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onAvatarPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
@@ -88,9 +89,14 @@ function AddDependantModal({ open, onClose, onCreated, maxReached }: {
       setError("Photo must be 2 MB or smaller");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => setAvatar(String(reader.result || ""));
-    reader.readAsDataURL(file);
+    try {
+      const resized = await fileToSquareImage(file);
+      const reader = new FileReader();
+      reader.onload = () => setAvatar(String(reader.result || ""));
+      reader.readAsDataURL(resized);
+    } catch {
+      setError("Could not process the photo");
+    }
   };
 
   if (!open) return null;

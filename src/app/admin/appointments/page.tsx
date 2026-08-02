@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Clock, CheckCircle2, XCircle, Calendar, User, Stethoscope, Loader2 } from "lucide-react";
+import { Plus, Clock, CheckCircle2, XCircle, Calendar, User, Stethoscope, Loader2, Search, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +47,9 @@ function getDepartment(apt: any): string {
 export default function AppointmentsPage() {
   const router = useRouter();
   const [tab, setTab] = useState("all");
+  const [search, setSearch] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const { data: appointmentsData, loading, refresh } = useAppointments();
   const { data: patientsData } = usePatients();
   const { data: staffData } = useStaff();
@@ -76,8 +79,26 @@ export default function AppointmentsPage() {
   }, [appointmentsData]);
 
   const filtered = appointments.filter((a) => {
-    if (tab === "all") return true;
-    return a._displayStatus.toLowerCase() === tab;
+    if (tab !== "all" && a._displayStatus.toLowerCase() !== tab) return false;
+    const date = a.appointment_date ? a.appointment_date.slice(0, 10) : "";
+    if (fromDate && date < fromDate) return false;
+    if (toDate && date > toDate) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      const haystack = [
+        a.patientName,
+        a.patient?.patient_number || "",
+        a.patient?.user?.phone || "",
+        a.doctorName,
+        a.department,
+        date,
+        a.start_time || "",
+        a.reason || "",
+        a._displayStatus,
+      ].join(" ").toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
   });
 
   async function updateStatus(apt: typeof appointments[number], newStatus: string) {
@@ -125,6 +146,43 @@ export default function AppointmentsPage() {
           className="bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] font-semibold border-0">
           <Plus className="size-4" />New Appointment
         </Button>
+      </div>
+
+      {/* Search + date range filter */}
+      <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/40" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by patient name, number, doctor, date..."
+            className="pl-9 bg-white/[0.04] border-white/[0.08] text-white/80 placeholder:text-white/30 focus-visible:border-[#e0a84a]/40 focus-visible:ring-[#e0a84a]/20"
+          />
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-white/40 shrink-0">From:</span>
+          <Input
+            type="date"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            className="w-auto h-9 text-sm bg-white/[0.04] border-white/[0.08] text-white [color-scheme:dark] focus-visible:border-[#e0a84a]/40"
+          />
+          <span className="text-xs text-white/40 shrink-0">To:</span>
+          <Input
+            type="date"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+            className="w-auto h-9 text-sm bg-white/[0.04] border-white/[0.08] text-white [color-scheme:dark] focus-visible:border-[#e0a84a]/40"
+          />
+          {(search || fromDate || toDate) && (
+            <button
+              onClick={() => { setSearch(""); setFromDate(""); setToDate(""); }}
+              className="inline-flex items-center gap-1 h-9 px-3 rounded-xl text-xs text-white/50 hover:text-white hover:bg-white/[0.06] transition-colors"
+            >
+              <X className="size-3.5" /> Clear
+            </button>
+          )}
+        </div>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>

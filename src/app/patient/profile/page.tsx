@@ -8,6 +8,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import type { Patient } from "@/lib/api-types";
+import { fileToSquareUpload } from "@/lib/avatar-resize";
 
 function GlassCard({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
@@ -172,11 +173,12 @@ export default function ProfilePage() {
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const formData = new FormData();
-    formData.append("avatar", file);
     setSaving(true);
     setError("");
     try {
+      const resized = await fileToSquareUpload(file);
+      const formData = new FormData();
+      formData.append("avatar", resized);
       const res = await fetch("/api/upload/avatar", {
         method: "POST",
         body: formData,

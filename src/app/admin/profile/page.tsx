@@ -10,6 +10,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
+import { fileToSquareUpload } from "@/lib/avatar-resize";
 
 export default function AdminProfilePage() {
   const router = useRouter();
@@ -49,8 +50,9 @@ export default function AdminProfilePage() {
     setUploading(true);
     setMessage(null);
     try {
+      const resized = await fileToSquareUpload(file);
       const formData = new FormData();
-      formData.append("avatar", file);
+      formData.append("avatar", resized);
       const res = await fetch("/api/upload/avatar", { method: "POST", body: formData });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || "Upload failed");
