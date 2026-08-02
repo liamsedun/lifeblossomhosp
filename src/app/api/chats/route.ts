@@ -75,9 +75,9 @@ export async function GET(req: NextRequest) {
       const patientId = await resolvePatientId(svc, authUserId);
       if (!patientId) return err("Patient record not found", 404);
       chatQuery = chatQuery.eq("patient_id", patientId);
-    } else if (role !== "super_admin") {
-      // Only the super admin sees everyone's conversations; every other
-      // staff member (admin/doctor/nurse/accountant) sees their own.
+    } else {
+      // Every staff member — including super admins — only sees their own
+      // conversations with patients/dependants.
       chatQuery = chatQuery.eq("staff_user_id", authUserId);
     }
 

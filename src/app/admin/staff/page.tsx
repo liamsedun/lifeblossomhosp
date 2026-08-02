@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Stethoscope, Clock, CalendarDays, Phone, Mail,
   MoreHorizontal, Plus, Trash2, PenLine, Search, Loader2, Calendar, CalendarClock, UserRoundCheck, UserRoundX,
+  CalendarRange, List, Users, Sun,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,7 +31,7 @@ interface DutyShift {
   from_time: string;
   until_time: string;
   note: string | null;
-  staff?: { id: string; staff_number: string; user?: { id: string; first_name: string; last_name: string } | null };
+  staff?: { id: string; staff_number: string; department?: string | null; user?: { id: string; first_name: string; last_name: string } | null };
 }
 
 interface StaffForm {
@@ -125,26 +126,39 @@ export default function StaffPage() {
   const [leaveForm, setLeaveForm] = useState({ on_leave_until: "" });
   const [formError, setFormError] = useState("");
 
-  // Today's duty shifts + upcoming roster (next 14 days)
+  // ── Duty roaster ──
+  // Today's duty shifts (drives the "On Duty" status on staff cards)
   const [todayShifts, setTodayShifts] = useState<DutyShift[]>([]);
-  const [upcomingShifts, setUpcomingShifts] = useState<DutyShift[]>([]);
+  // All shifts in the selected filter range (list/staff/day/week views)
+  const [rosterShifts, setRosterShifts] = useState<DutyShift[]>([]);
   const [rosterLoading, setRosterLoading] = useState(false);
+  const [rosterView, setRosterView] = useState<"list" | "staff" | "day" | "week">("list");
+  const [rosterSearch, setRosterSearch] = useState("");
+  const [rosterDept, setRosterDept] = useState("All");
+  const [rosterFrom, setRosterFrom] = useState(todayStr());
+  const [rosterTo, setRosterTo] = useState(addDays(todayStr(), 13));
+  // Edit/reschedule + delete state
+  const [editShift, setEditShift] = useState<DutyShift | null>(null);
+  const [editForm, setEditForm] = useState({ shift_date: "", from_time: "08:00", until_time: "16:00", note: "", notify: true });
+  const [editSaving, setEditSaving] = useState(false);
+  const [deleteShift, setDeleteShift] = useState<DutyShift | null>(null);
+  const [deleteShiftLoading, setDeleteShiftLoading] = useState(false);
 
   const loadRoster = useCallback(async () => {
     setRosterLoading(true);
     const today = todayStr();
-    const week = addDays(today, 13);
     try {
-      const [todayRes, upRes] = await Promise.all([
+      const deptParam = rosterDept !== "All" ? `&department=${encodeURIComponent(rosterDept)}` : "";
+      const [todayRes, rangeRes] = await Promise.all([
         fetch(`/api/staff/roster?from=${today}&to=${today}`),
-        fetch(`/api/staff/roster?from=${today}&to=${week}`),
+        fetch(`/api/staff/roster?from=${rosterFrom}&to=${rosterTo}${deptParam}`),
       ]);
-      const [todayJson, upJson] = await Promise.all([todayRes.json(), upRes.json()]);
+      const [todayJson, rangeJson] = await Promise.all([todayRes.json(), rangeRes.json()]);
       if (todayJson.success) setTodayShifts(todayJson.data || []);
-      if (upJson.success) setUpcomingShifts(upJson.data || []);
+      if (rangeJson.success) setRosterShifts(rangeJson.data || []);
     } catch { /* ignore */ }
     finally { setRosterLoading(false); }
-  }, []);
+  }, [rosterFrom, rosterTo, rosterDept]);
 
   useEffect(() => { loadRoster(); }, [loadRoster]);
 
@@ -370,6 +384,138 @@ export default function StaffPage() {
 
   const rosterTotalShifts = rosterDays * rosterForm.staff_ids.length;
 
+  // ── Roster filtering (staff name) + grouping for the view modes ──
+  const filteredRoster = useMemo(() => {
+    if (!rosterSearch) return rosterShifts;
+    const q = rosterSearch.toLowerCase();
+    return rosterShifts.filter((s) => {
+      const name = s.staff?.user ? `${s.staff.user.first_name} ${s.staff.user.last_name}` : (s.staff?.staff_number || "");
+      return name.toLowerCase().includes(q);
+    });
+  }, [rosterShifts, rosterSearch]);
+
+  const rosterByStaff = useMemo(() => {
+    const map = new Map<string, DutyShift[]>();
+    filteredRoster.forEach((s) => {
+      const key = s.staff_id;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(s);
+    });
+    return [...map.entries()].sort((a, b) => {
+      const na = a[1][0]?.staff?.user ? `${a[1][0].staff.user.first_name} ${a[1][0].staff.user.last_name}` : "";
+      const nb = b[1][0]?.staff?.user ? `${b[1][0].staff.user.first_name} ${b[1][0].staff.user.last_name}` : "";
+      return na.localeCompare(nb);
+    });
+  }, [filteredRoster]);
+
+  const rosterByDay = useMemo(() => {
+    const map = new Map<string, DutyShift[]>();
+    filteredRoster.forEach((s) => {
+      if (!map.has(s.shift_date)) map.set(s.shift_date, []);
+      map.get(s.shift_date)!.push(s);
+    });
+    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [filteredRoster]);
+
+  const rosterByWeek = useMemo(() => {
+    const map = new Map<string, DutyShift[]>();
+    filteredRoster.forEach((s) => {
+      const d = new Date(`${s.shift_date}T00:00:00`);
+      const dow = (d.getDay() + 6) % 7; // Monday = 0
+      const monday = new Date(d);
+      monday.setDate(d.getDate() - dow);
+      const key = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(s);
+    });
+    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [filteredRoster]);
+
+  function fmtWeekRange(mondayStr: string): string {
+    const monday = new Date(`${mondayStr}T00:00:00`);
+    const sunday = addDays(mondayStr, 6);
+    return `${fmtDate(mondayStr)} – ${fmtDate(sunday)}`;
+  }
+
+  function openEditShift(s: DutyShift) {
+    setEditShift(s);
+    setEditForm({
+      shift_date: s.shift_date,
+      from_time: s.from_time?.slice(0, 5) || "08:00",
+      until_time: s.until_time?.slice(0, 5) || "16:00",
+      note: s.note || "",
+      notify: true,
+    });
+  }
+
+  async function handleEditShift(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editShift) return;
+    setEditSaving(true);
+    try {
+      const res = await fetch(`/api/staff/roster/${editShift.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shift_date: editForm.shift_date,
+          from_time: editForm.from_time,
+          until_time: editForm.until_time,
+          note: editForm.note || null,
+          notify: editForm.notify,
+        }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || "Failed to update duty shift");
+      setEditShift(null);
+      loadRoster(); refresh();
+    } catch (err: any) { alert(err.message); }
+    finally { setEditSaving(false); }
+  }
+
+  async function handleDeleteShift() {
+    if (!deleteShift) return;
+    setDeleteShiftLoading(true);
+    try {
+      const res = await fetch(`/api/staff/roster/${deleteShift.id}`, { method: "DELETE" });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || "Failed to delete duty shift");
+      setDeleteShift(null);
+      loadRoster(); refresh();
+    } catch (err: any) { alert(err.message); }
+    finally { setDeleteShiftLoading(false); }
+  }
+
+  function shiftRowActions(s: DutyShift) {
+    return (
+      <div className="flex items-center gap-1">
+        <button type="button" onClick={() => openEditShift(s)}
+          title="Reschedule / Edit"
+          className="p-1.5 rounded-lg text-white/40 hover:text-[#e0a84a] hover:bg-white/[0.06] transition-colors">
+          <PenLine className="size-3.5" />
+        </button>
+        <button type="button" onClick={() => setDeleteShift(s)}
+          title="Delete shift"
+          className="p-1.5 rounded-lg text-white/40 hover:text-rose-400 hover:bg-white/[0.06] transition-colors">
+          <Trash2 className="size-3.5" />
+        </button>
+      </div>
+    );
+  }
+
+  function shiftInfo(s: DutyShift) {
+    return (
+      <span className="text-[#e0a84a] whitespace-nowrap">
+        FROM {fmtTime(s.from_time)} UNTIL {fmtTime(s.until_time)}
+      </span>
+    );
+  }
+
+  function shiftName(s: DutyShift) {
+    return s.staff?.user
+      ? `${s.staff.user.first_name} ${s.staff.user.last_name}`
+      : (s.staff?.staff_number || "—");
+  }
+
   if (!authorized) return null;
   return (
     <div className="space-y-5">
@@ -538,50 +684,171 @@ export default function StaffPage() {
         })}
       </div>
 
-      {/* Upcoming duty roaster (next 14 days) */}
+      {/* Duty roaster — filters + per staff/day/week views */}
       <Card className="border-white/[0.06] bg-white/[0.03] backdrop-blur-xl">
-        <CardHeader className="pb-2 flex flex-row items-center justify-between">
-          <CardTitle className="text-base text-white">Duty Roaster — Next 14 Days</CardTitle>
+        <CardHeader className="pb-2 flex flex-row items-center justify-between flex-wrap gap-3">
+          <CardTitle className="text-base text-white">Duty Roaster</CardTitle>
           <Button variant="ghost" size="sm" className="h-7 text-xs text-[#e0a84a]/70 hover:text-[#e0a84a]"
             onClick={() => openRoster()}>
             <CalendarClock className="size-3.5 mr-1" />Schedule Duty
           </Button>
         </CardHeader>
+
+        {/* Filters: staff name, department, date range FROM/TO, view mode */}
+        <CardContent className="pb-4 space-y-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative flex-1 min-w-[180px] max-w-xs">
+              <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-white/40" />
+              <Input placeholder="Filter by staff name..."
+                className="h-9 pl-9 text-sm bg-white/[0.04] border-white/[0.08] text-white/80 placeholder:text-white/30"
+                value={rosterSearch} onChange={(e) => setRosterSearch(e.target.value)} />
+            </div>
+            <select value={rosterDept} onChange={(e) => setRosterDept(e.target.value)}
+              className="h-9 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 text-xs text-white/80">
+              {departments.map((d) => (
+                <option key={d} value={d} className="bg-[#0d1322]">{d === "All" ? "All Departments" : d}</option>
+              ))}
+            </select>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-white/40 uppercase tracking-wide">From</span>
+              <input type="date" value={rosterFrom} onChange={(e) => e.target.value && setRosterFrom(e.target.value)}
+                className="h-9 rounded-xl border border-white/[0.08] bg-white/[0.04] px-2.5 text-xs text-white [color-scheme:dark]" />
+              <span className="text-[10px] text-white/40 uppercase tracking-wide">To</span>
+              <input type="date" value={rosterTo} onChange={(e) => e.target.value && setRosterTo(e.target.value)}
+                className="h-9 rounded-xl border border-white/[0.08] bg-white/[0.04] px-2.5 text-xs text-white [color-scheme:dark]" />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <p className="text-xs text-white/40">
+              {rosterLoading ? "Loading..." : `${filteredRoster.length} shift(s) scheduled`}
+            </p>
+            <div className="flex bg-white/[0.04] rounded-xl p-0.5 border border-white/[0.06]">
+              {([
+                { key: "list", label: "List", icon: List },
+                { key: "staff", label: "Per Staff", icon: Users },
+                { key: "day", label: "Per Day", icon: Sun },
+                { key: "week", label: "Per Week", icon: CalendarRange },
+              ] as const).map(({ key, label, icon: Icon }) => (
+                <button key={key} onClick={() => setRosterView(key)}
+                  className={cn("flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all",
+                    rosterView === key ? "bg-white/[0.08] text-white" : "text-white/40 hover:text-white/70"
+                  )}>
+                  <Icon className="size-3.5" />{label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+
         <CardContent className="p-0">
           {rosterLoading ? (
             <div className="flex justify-center py-8"><Loader2 className="size-5 animate-spin text-[#e0a84a]" /></div>
-          ) : upcomingShifts.length === 0 ? (
+          ) : filteredRoster.length === 0 ? (
             <div className="py-8 text-center text-sm text-white/40">
-              No duty scheduled yet. Use "Schedule Duty" to assign shifts (up to a month at a time) — scheduled staff get an in-app + push notification with the date and time.
+              {rosterFrom === todayStr() && rosterTo === addDays(todayStr(), 13) && !rosterSearch && rosterDept === "All"
+                ? `No duty scheduled yet. Use "Schedule Duty" to assign shifts — scheduled staff get an in-app + push notification with the date and time.`
+                : "No duty shifts match the current filters."}
             </div>
-          ) : (
+          ) : rosterView === "list" ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs text-white/40 border-b border-white/[0.06]">
                     <th className="px-5 py-3 font-medium">Date</th>
                     <th className="px-5 py-3 font-medium">Staff</th>
+                    <th className="px-5 py-3 font-medium">Department</th>
                     <th className="px-5 py-3 font-medium">Time</th>
                     <th className="px-5 py-3 font-medium">Note</th>
+                    <th className="px-5 py-3 font-medium text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.06]">
-                  {upcomingShifts.map((s) => (
+                  {filteredRoster.map((s) => (
                     <tr key={s.id} className="hover:bg-white/[0.02] transition-colors">
                       <td className="px-5 py-2.5 text-white/80 whitespace-nowrap">{fmtDate(s.shift_date)}</td>
-                      <td className="px-5 py-2.5 text-white">
-                        {s.staff?.user
-                          ? `${s.staff.user.first_name} ${s.staff.user.last_name}`
-                          : (s.staff?.staff_number || "—")}
-                      </td>
-                      <td className="px-5 py-2.5 text-[#e0a84a] whitespace-nowrap">
-                        FROM {fmtTime(s.from_time)} UNTIL {fmtTime(s.until_time)}
-                      </td>
-                      <td className="px-5 py-2.5 text-white/40">{s.note || "—"}</td>
+                      <td className="px-5 py-2.5 text-white whitespace-nowrap">{shiftName(s)}</td>
+                      <td className="px-5 py-2.5 text-white/50">{s.staff?.department || "—"}</td>
+                      <td className="px-5 py-2.5">{shiftInfo(s)}</td>
+                      <td className="px-5 py-2.5 text-white/40 max-w-[180px] truncate">{s.note || "—"}</td>
+                      <td className="px-5 py-2.5 text-right">{shiftRowActions(s)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          ) : rosterView === "staff" ? (
+            <div className="divide-y divide-white/[0.06]">
+              {rosterByStaff.map(([staffId, shifts]) => (
+                <div key={staffId} className="px-5 py-4">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Avatar className="size-8 ring-1 ring-[#e0a84a]/20">
+                      <AvatarFallback className="text-[9px] bg-[#1a2540] text-[#e0a84a] font-semibold">
+                        {getInitials(shifts[0]?.staff?.user ? `${shifts[0].staff.user.first_name} ${shifts[0].staff.user.last_name}` : "")}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-white">{shiftName(shifts[0])}</p>
+                      <p className="text-[11px] text-white/40">{shifts[0]?.staff?.department || "—"} · {shifts.length} shift(s)</p>
+                    </div>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {shifts.map((s) => (
+                      <div key={s.id} className="flex items-center justify-between gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                        <div>
+                          <p className="text-xs text-white/80">{fmtDate(s.shift_date)}</p>
+                          <p className="text-[11px] text-[#e0a84a] mt-0.5">{shiftInfo(s)}</p>
+                          {s.note && <p className="text-[10px] text-white/35 mt-0.5">{s.note}</p>}
+                        </div>
+                        {shiftRowActions(s)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : rosterView === "day" ? (
+            <div className="divide-y divide-white/[0.06]">
+              {rosterByDay.map(([date, shifts]) => (
+                <div key={date} className="px-5 py-4">
+                  <p className="text-sm font-semibold text-white mb-2">{fmtDate(date)} <span className="text-white/35 font-normal text-xs">· {shifts.length} shift(s)</span></p>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {shifts.map((s) => (
+                      <div key={s.id} className="flex items-center justify-between gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="text-xs text-white/85 truncate">{shiftName(s)}</p>
+                          <p className="text-[11px] text-white/40">{s.staff?.department || "—"}</p>
+                          <p className="text-[11px] text-[#e0a84a] mt-0.5">{shiftInfo(s)}</p>
+                        </div>
+                        {shiftRowActions(s)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="divide-y divide-white/[0.06]">
+              {rosterByWeek.map(([mondayStr, shifts]) => (
+                <div key={mondayStr} className="px-5 py-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-semibold text-white">{fmtWeekRange(mondayStr)}</p>
+                    <span className="text-[11px] text-white/35">{shifts.length} shift(s)</span>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {shifts.map((s) => (
+                      <div key={s.id} className="flex items-center justify-between gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="text-xs text-white/85">{fmtDate(s.shift_date)}</p>
+                          <p className="text-xs text-white/70 truncate">{shiftName(s)}</p>
+                          <p className="text-[11px] text-[#e0a84a] mt-0.5">{shiftInfo(s)}</p>
+                        </div>
+                        {shiftRowActions(s)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </CardContent>
@@ -939,6 +1206,107 @@ export default function StaffPage() {
                 </div>
               </DialogFooter>
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Reschedule / Edit Duty Shift Modal */}
+      <Dialog open={!!editShift} onOpenChange={(o) => { if (!o && !editSaving) setEditShift(null); }}>
+        <DialogContent className="sm:max-w-sm border-white/[0.06] bg-[#0d1322]/95 backdrop-blur-xl text-white">
+          <DialogHeader><DialogTitle className="text-white">Reschedule / Edit Duty Shift</DialogTitle></DialogHeader>
+          {editShift && (
+            <form onSubmit={handleEditShift} className="space-y-4">
+              <div className="flex items-center gap-3 p-3 bg-white/[0.04] rounded-xl">
+                <Avatar className="size-9 ring-1 ring-[#e0a84a]/20">
+                  <AvatarFallback className="text-[10px] bg-[#1a2540] text-[#e0a84a] font-semibold">
+                    {getInitials(`${editShift.staff?.user?.first_name || ""} ${editShift.staff?.user?.last_name || ""}`)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-white truncate">{shiftName(editShift)}</p>
+                  <p className="text-xs text-white/50">{editShift.staff?.department || "—"}</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-white/50 mb-1">Duty Date</label>
+                <Input type="date" value={editForm.shift_date}
+                  onChange={(e) => setEditForm({ ...editForm, shift_date: e.target.value })}
+                  className="bg-white/[0.04] border-white/[0.08] text-white [color-scheme:dark]" required />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-white/50 mb-1">FROM (time)</label>
+                  <Input type="time" value={editForm.from_time}
+                    onChange={(e) => setEditForm({ ...editForm, from_time: e.target.value })}
+                    className="bg-white/[0.04] border-white/[0.08] text-white [color-scheme:dark]" required />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-white/50 mb-1">UNTIL (time)</label>
+                  <Input type="time" value={editForm.until_time}
+                    onChange={(e) => setEditForm({ ...editForm, until_time: e.target.value })}
+                    className="bg-white/[0.04] border-white/[0.08] text-white [color-scheme:dark]" required />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-white/50 mb-1">Note (optional)</label>
+                <Input value={editForm.note}
+                  onChange={(e) => setEditForm({ ...editForm, note: e.target.value })}
+                  placeholder="e.g. Ward A shift" className="bg-white/[0.04] border-white/[0.08] text-white" />
+              </div>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <div className="relative">
+                  <input type="checkbox" className="sr-only peer"
+                    checked={editForm.notify}
+                    onChange={(e) => setEditForm({ ...editForm, notify: e.target.checked })} />
+                  <div className="w-9 h-5 rounded-full bg-white/[0.08] peer-checked:bg-emerald-500/50 transition-colors" />
+                  <div className={cn(
+                    "absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform",
+                    editForm.notify && "translate-x-4 bg-emerald-400"
+                  )} />
+                </div>
+                <span className="text-sm text-white/80">Notify staff of the change</span>
+              </label>
+
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline" className="bg-white text-black border-border hover:bg-gray-100">Cancel</Button>
+                </DialogClose>
+                <Button type="submit" disabled={editSaving}
+                  className="bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] font-semibold border-0 shadow-lg shadow-[#e0a84a]/20">
+                  {editSaving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                  {editSaving ? "Saving..." : "Save Changes"}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Shift Confirmation */}
+      <Dialog open={!!deleteShift} onOpenChange={(o) => { if (!o && !deleteShiftLoading) setDeleteShift(null); }}>
+        <DialogContent className="sm:max-w-sm border-white/[0.06] bg-[#0d1322]/95 backdrop-blur-xl text-white">
+          <DialogHeader><DialogTitle className="text-white">Delete Duty Shift</DialogTitle></DialogHeader>
+          {deleteShift && (
+            <>
+              <p className="text-sm text-white/60">
+                Remove the duty shift for <strong className="text-white">{shiftName(deleteShift)}</strong> on{" "}
+                <strong className="text-white">{fmtDate(deleteShift.shift_date)}</strong> ({fmtTime(deleteShift.from_time)} – {fmtTime(deleteShift.until_time)})?
+              </p>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline" className="bg-white text-black border-border hover:bg-gray-100">Cancel</Button>
+                </DialogClose>
+                <Button type="button" onClick={handleDeleteShift} disabled={deleteShiftLoading}
+                  className="bg-gradient-to-r from-rose-500 to-pink-500 text-white border-0 shadow-lg shadow-rose-500/20">
+                  {deleteShiftLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                  {deleteShiftLoading ? "Deleting..." : "Delete Shift"}
+                </Button>
+              </DialogFooter>
+            </>
           )}
         </DialogContent>
       </Dialog>

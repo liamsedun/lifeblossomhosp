@@ -82,7 +82,14 @@ export default function PatientInternalMailPage() {
   useEffect(() => {
     fetch("/api/internal-mail/recipients")
       .then((r) => r.json())
-      .then((j) => { if (j.success) setStaffList(j.data?.staff || []); })
+      .then((j) => {
+        if (j.success) {
+          setStaffList((j.data?.staff || []).map((u: any) => ({
+            ...u,
+            full_name: [u.first_name, u.last_name].filter(Boolean).join(" ") || u.email || "Unknown",
+          })));
+        }
+      })
       .catch(() => {});
   }, []);
 
@@ -223,7 +230,7 @@ export default function PatientInternalMailPage() {
   }) => {
     const q = search.toLowerCase();
     const staff = staffList.filter(
-      (s) => s.full_name.toLowerCase().includes(q) || s.role.toLowerCase().includes(q)
+      (s) => (s.full_name || "").toLowerCase().includes(q) || (s.role || "").toLowerCase().includes(q)
     );
     return (
       <div>

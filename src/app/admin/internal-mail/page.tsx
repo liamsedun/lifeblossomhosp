@@ -60,9 +60,9 @@ function RecipientPicker({
 }) {
   const q = search.toLowerCase();
   const staff = staffList.filter(
-    (s) => s.full_name.toLowerCase().includes(q) || s.role.toLowerCase().includes(q)
+    (s) => (s.full_name || "").toLowerCase().includes(q) || (s.role || "").toLowerCase().includes(q)
   );
-  const patients = (patientList || []).filter((s) => s.full_name.toLowerCase().includes(q));
+  const patients = (patientList || []).filter((s) => (s.full_name || "").toLowerCase().includes(q));
   const all = [...staffList, ...(patientList || [])];
   const chips = all.filter((s) => selected.includes(s.id));
 
@@ -176,8 +176,12 @@ export default function InternalMailPage() {
       const r = await fetch("/api/internal-mail/recipients");
       const j = await r.json();
       if (j.success) {
-        setStaffList(j.data?.staff || []);
-        setPatientList(j.data?.patients || []);
+        const withName = (u: any): StaffUser => ({
+          ...u,
+          full_name: [u.first_name, u.last_name].filter(Boolean).join(" ") || u.email || "Unknown",
+        });
+        setStaffList((j.data?.staff || []).map(withName));
+        setPatientList((j.data?.patients || []).map(withName));
       }
     } catch {}
   };

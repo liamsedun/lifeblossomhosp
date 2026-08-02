@@ -344,6 +344,69 @@ export default function ReportsPage() {
     downloadCsv(`hospital-report-${new Date().toISOString().split("T")[0]}.csv`, rows);
   }, [kpis, revenueTrendData, deptPieData, recentActivity, staff, patients, appointments, monthLabel, pnl, pnlFrom, pnlTo]);
 
+  // Window-print ONLY the P&L statement (letterhead + statement table) —
+  // never the whole reports page.
+  const printPnl = useCallback(() => {
+    if (!pnl) return;
+    const contact = [orgInfo?.phone && `Tel: ${orgInfo.phone}`, orgInfo?.email && `Email: ${orgInfo.email}`, orgInfo?.website && orgInfo.website]
+      .filter(Boolean).join(" • ");
+    const rows = [
+      ["Revenue from Medical Services", pnl.medRev],
+      ["Other Incomes", pnl.othRev],
+      ["Total Income", pnl.totalIncome, "bold"],
+      ["Less: Expenses", "", "italic"],
+      ...pnl.lines.map((l) => [l.label, l.amount]),
+      ["Total Expenses", pnl.totalExpenses, "bold"],
+      ["NET PROFIT/(LOSS) FOR THE PERIOD", pnl.net, "net"],
+    ];
+    const rowHtml = rows.map((r: any) => {
+      const cls = r[2] === "bold" ? ' class="b"' : r[2] === "italic" ? ' class="i"' : r[2] === "net" ? ' class="net"' : "";
+      return `<tr${cls}><td>${r[0]}</td><td class="amt">${formatCurrency(Number(r[1]))}</td></tr>`;
+    }).join("");
+    const w = window.open("", "_blank", "width=820,height=960");
+    if (!w) return;
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Profit &amp; Loss Statement</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #111; margin: 0; padding: 40px; background: #fff; }
+  .header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
+  .logo { width: 56px; height: 56px; object-fit: contain; }
+  .logo-fallback { width: 56px; height: 56px; border-radius: 8px; background: #f1e3c6; border: 1px solid #d9c9a3; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 20px; color: #8a6d2f; }
+  h1 { font-size: 16px; margin: 0; text-transform: uppercase; }
+  .sub { font-size: 11px; color: #555; margin-top: 2px; }
+  .contact { font-size: 10px; color: #777; margin-top: 2px; }
+  .title { text-align: center; margin-bottom: 24px; }
+  .title p:first-child { font-size: 17px; font-weight: 700; margin: 0; }
+  .title p:last-child { font-size: 11px; color: #555; margin: 4px 0 0; }
+  table { width: 100%; border-collapse: collapse; border: 1px solid #ccc; font-size: 13px; }
+  tr { border-bottom: 1px solid #eee; }
+  tr.b { background: #f5f5f5; font-weight: 700; }
+  tr.b td { border-top: 1px solid #bbb; }
+  tr.i td { font-style: italic; color: #666; }
+  tr.net { background: #efefef; font-weight: 800; }
+  tr.net td { border-top: 2px solid #999; border-bottom: 2px solid #999; }
+  td { padding: 9px 14px; }
+  td.amt { text-align: right; }
+  @media print { body { padding: 20px; } }
+</style></head><body>
+  <div class="header">
+    ${orgInfo?.logo_url ? `<img class="logo" src="${orgInfo.logo_url}" alt="logo" />` : `<div class="logo-fallback">${(orgInfo?.name || "L")[0]}</div>`}
+    <div>
+      <h1>${orgInfo?.name || "Life Blossom Care &amp; Cure Hospital"}</h1>
+      ${orgInfo?.address ? `<p class="sub">${orgInfo.address}</p>` : ""}
+      ${contact ? `<p class="contact">${contact}</p>` : ""}
+    </div>
+  </div>
+  <div class="title">
+    <p>PROFIT AND LOSS STATEMENT</p>
+    <p>For the period from ${fmtPeriodDate(pnlFrom)} to ${fmtPeriodDate(pnlTo)}</p>
+  </div>
+  <table>${rowHtml}</table>
+  <script>window.onload = function(){ window.print(); };</script>
+</body></html>`);
+    w.document.close();
+  }, [pnl, orgInfo, pnlFrom, pnlTo]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-32">
@@ -382,9 +445,9 @@ export default function ReportsPage() {
               className="hover:bg-white/[0.06] hover:text-white">
               <Download className="size-3.5 mr-2" />Download CSV
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => window.print()}
+            <DropdownMenuItem onClick={printPnl}
               className="hover:bg-white/[0.06] hover:text-white">
-              <Printer className="size-3.5 mr-2" />Print Report
+              <Printer className="size-3.5 mr-2" />Print P&L
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -484,7 +547,7 @@ export default function ReportsPage() {
               className="h-9 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 text-xs text-white [color-scheme:dark] focus:outline-none focus:border-[#e0a84a]/40"
               aria-label="P&L to date" />
             <Button size="sm" className="h-9 bg-gradient-to-r from-[#e0a84a] to-amber-500 text-[#0a0f1a] font-semibold border-0 shadow-lg shadow-[#e0a84a]/20"
-              onClick={() => window.print()}>
+              onClick={printPnl}>
               <Printer className="size-4" />Print P&L
             </Button>
           </div>

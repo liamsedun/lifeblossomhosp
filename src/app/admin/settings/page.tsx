@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Stethoscope, PenLine, Trash2, Plus, KeyRound, Shield, ShieldOff, Landmark, Power, AlertTriangle, Loader2, Hash, CheckCircle2, RotateCcw } from "lucide-react";
+import { Stethoscope, PenLine, Trash2, Plus, KeyRound, Shield, ShieldOff, Landmark, Power, AlertTriangle, Loader2, Hash, CheckCircle2, RotateCcw, Database, Download, Upload } from "lucide-react";
 import { useRoleGuard } from "@/hooks/use-role-guard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -55,6 +55,68 @@ export default function SettingsPage() {
   const [resetting, setResetting] = useState(false);
   const [resetMsg, setResetMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [backupMsg, setBackupMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [restoreFile, setRestoreFile] = useState<File | null>(null);
+  const [restoreLoading, setRestoreLoading] = useState(false);
+  const [restoreMsg, setRestoreMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function handleBackup() {
+    setBackupMsg(null);
+    setBackupLoading(true);
+    try {
+      const res = await fetch("/api/system/backup");
+      if (!res.ok) {
+        let msg = "Backup failed";
+        try { const j = await res.json(); if (j?.error) msg = j.error; } catch {}
+        throw new Error(msg);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `life-blossom-backup-${new Date().toISOString().split("T")[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setBackupMsg({ ok: true, text: "Backup downloaded. Store it somewhere safe — it is the only way to rebuild the system after a crash." });
+    } catch (err: any) {
+      setBackupMsg({ ok: false, text: err.message });
+    } finally {
+      setBackupLoading(false);
+    }
+  }
+
+  async function handleRestore(e: React.FormEvent) {
+    e.preventDefault();
+    if (!restoreFile) return;
+    setRestoreMsg(null);
+    setRestoreLoading(true);
+    try {
+      const text = await restoreFile.text();
+      const parsed = JSON.parse(text);
+      const res = await fetch("/api/system/restore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parsed),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || "Restore failed");
+      const d = json.data || {};
+      const total = Object.values(d.restored || {}).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
+      setRestoreMsg({
+        ok: true,
+        text: `Restore complete — ${total} records restored (${d.users?.createdAccounts || 0} accounts recreated with temp passwords, ${d.users?.reusedAccounts || 0} kept). Reload the page to see your data.`,
+      });
+      setRestoreFile(null);
+    } catch (err: any) {
+      setRestoreMsg({ ok: false, text: err.message });
+    } finally {
+      setRestoreLoading(false);
+    }
+  }
 
   async function loadDoctors() {
     try {
@@ -142,6 +204,7 @@ export default function SettingsPage() {
           <TabsTrigger value="bank-accounts">Bank Accounts</TabsTrigger>
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="prefixes">ID Prefixes</TabsTrigger>
+          {isSuperAdmin && <TabsTrigger value="backups">Backups</TabsTrigger>}
           {isSuperAdmin && <TabsTrigger value="system-reset">System Reset</TabsTrigger>}
         </TabsList>
 
@@ -277,6 +340,77 @@ export default function SettingsPage() {
               </form>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="backups">
+          {isSuperAdmin && (
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Database className="w-4 h-4 text-primary" /> Backup System
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-text-secondary">
+                    Downloads a complete JSON backup of every record in the system — patients, staff,
+                    medical records, reports, invoices, payments, chats, mail, audit logs and settings.
+                    Keep it stored safely off-site; it is the only way to rebuild the hospital system
+                    after a total site crash.
+                  </p>
+                  {backupMsg && (
+                    <div className={`text-sm px-3 py-2 rounded-lg border ${backupMsg.ok ? "text-emerald-600 border-emerald-200 bg-emerald-50" : "text-rose-600 border-rose-200 bg-rose-50"}`}>
+                      {backupMsg.ok ? <CheckCircle2 className="w-4 h-4 inline mr-1.5" /> : <AlertTriangle className="w-4 h-4 inline mr-1.5" />}
+                      {backupMsg.text}
+                    </div>
+                  )}
+                  <Button onClick={handleBackup} disabled={backupLoading}>
+                    {backupLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Download className="w-4 h-4 mr-2" />}
+                    {backupLoading ? "Backing up…" : "Backup Now"}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2 text-amber-600">
+                    <Upload className="w-4 h-4" /> Restore from Backup
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 space-y-1">
+                    <p className="font-semibold flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4" /> Restoring wipes all current data first.
+                    </p>
+                    <p>
+                      Everything in the system right now will be replaced with the backup contents
+                      (your account is kept). Accounts that no longer exist are recreated with a
+                      temporary password — reset them from Admin → Users afterwards.
+                    </p>
+                  </div>
+                  <form onSubmit={handleRestore} className="space-y-3">
+                    <Input
+                      type="file"
+                      accept=".json,application/json"
+                      onChange={(e) => setRestoreFile(e.target.files?.[0] || null)}
+                      className="max-w-md"
+                    />
+                    {restoreMsg && (
+                      <div className={`text-sm px-3 py-2 rounded-lg border max-w-lg ${restoreMsg.ok ? "text-emerald-600 border-emerald-200 bg-emerald-50" : "text-rose-600 border-rose-200 bg-rose-50"}`}>
+                        {restoreMsg.ok ? <CheckCircle2 className="w-4 h-4 inline mr-1.5" /> : <AlertTriangle className="w-4 h-4 inline mr-1.5" />}
+                        {restoreMsg.text}
+                      </div>
+                    )}
+                    <Button type="submit" variant="outline" disabled={!restoreFile || restoreLoading}
+                      className="border-amber-400 text-amber-700 hover:bg-amber-50">
+                      {restoreLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
+                      {restoreLoading ? "Restoring…" : "Restore System"}
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="system-reset">

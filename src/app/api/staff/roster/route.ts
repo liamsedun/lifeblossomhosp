@@ -25,7 +25,7 @@ function fmtDate(d: string): string {
   });
 }
 
-// GET /api/staff/roster?from=YYYY-MM-DD&to=YYYY-MM-DD&staff_id=...
+// GET /api/staff/roster?from=YYYY-MM-DD&to=YYYY-MM-DD&staff_id=...&department=...
 export const GET = withAuth(async (req, supabase, authUserId) => {
   const sp = new URL(req.url).searchParams;
   const orgId = await resolveOrgId(supabase, authUserId);
@@ -38,7 +38,7 @@ export const GET = withAuth(async (req, supabase, authUserId) => {
 
   let query = supabase
     .from("duty_roster")
-    .select("*, staff:staff!inner(id, staff_number, user:users(id, first_name, last_name, avatar_url, role, email))")
+    .select("*, staff:staff!inner(id, staff_number, department, user:users(id, first_name, last_name, avatar_url, role, email))")
     .eq("org_id", orgId);
 
   const from = sp.get("from");
@@ -47,6 +47,8 @@ export const GET = withAuth(async (req, supabase, authUserId) => {
   if (to) query = query.lte("shift_date", to);
   const staffId = sp.get("staff_id");
   if (staffId) query = query.eq("staff_id", staffId);
+  const department = sp.get("department");
+  if (department && department !== "All") query = query.eq("staff.department", department);
 
   const { data, error } = await query.order("shift_date", { ascending: true });
   if (error) return err(error.message, 500);
@@ -139,31 +141,39 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
       else notified = notifications.length;
     }
 
-    // Push to subscribed devices of the scheduled staff
+    // Push to subscribed devices of the scheduled staff — best-effort only:
+    // a push failure must NEVER fail the roster save (the rows are already
+    // committed above). Without this guard, staff with a stale/expired push
+    // subscription would get "Internal server error" even though the
+    // schedule was saved successfully.
     const userIds = [...new Set(notifications.map((n) => n.user_id).filter(Boolean))] as string[];
     if (userIds.length) {
-      const { data: subs } = await svc
-        .from("push_subscriptions")
-        .select("user_id, subscription_json")
-        .in("user_id", userIds);
-      if (subs && subs.length) {
-        const byUser = new Map<string, any[]>();
-        (subs as any[]).forEach((s) => {
-          const arr = byUser.get(s.user_id) || [];
-          arr.push(s.subscription_json);
-          byUser.set(s.user_id, arr);
-        });
-        for (const [uid, list] of byUser) {
-          const entry = rows.find((r) => r.user_id === uid);
-          if (!entry) continue;
-          await sendPushNotifications(list, {
-            title: "Duty Schedule",
-            body: `You are scheduled for duty: DATE: ${fmtDate(entry.shift_date)}, TIME: FROM: ${fmtTime(entry.from_time)} UNTIL: ${fmtTime(entry.until_time)}`,
-            url: "/admin/staff",
-            tag: "duty-schedule",
-            requireInteraction: false,
+      try {
+        const { data: subs } = await svc
+          .from("push_subscriptions")
+          .select("user_id, subscription_json")
+          .in("user_id", userIds);
+        if (subs && subs.length) {
+          const byUser = new Map<string, any[]>();
+          (subs as any[]).forEach((s) => {
+            const arr = byUser.get(s.user_id) || [];
+            arr.push(s.subscription_json);
+            byUser.set(s.user_id, arr);
           });
+          for (const [uid, list] of byUser) {
+            const entry = rows.find((r) => r.user_id === uid);
+            if (!entry) continue;
+            await sendPushNotifications(list, {
+              title: "Duty Schedule",
+              body: `You are scheduled for duty: DATE: ${fmtDate(entry.shift_date)}, TIME: FROM: ${fmtTime(entry.from_time)} UNTIL: ${fmtTime(entry.until_time)}`,
+              url: "/admin/staff",
+              tag: "duty-schedule",
+              requireInteraction: false,
+            });
+          }
         }
+      } catch (e) {
+        console.error("[roster] push notification error:", e);
       }
     }
   }

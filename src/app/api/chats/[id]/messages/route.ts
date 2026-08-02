@@ -6,7 +6,7 @@ import { sendPushNotifications, type PushPayload } from "@/lib/push-notification
 
 const MESSAGE_PAGE_SIZE = 20;
 
-/** Verify the caller is a participant of this chat (patient, assigned staff, or admin). */
+/** Verify the caller is a participant of this chat (patient or the assigned staff owner). */
 async function assertParticipant(
   svc: ReturnType<typeof createServiceClient>,
   orgId: string,
@@ -26,9 +26,8 @@ async function assertParticipant(
 
   const isPatientOwner = chat.patient?.user_id === authUserId;
   const isStaffOwner = chat.staff_user_id === authUserId;
-  const isAdmin = role === "admin" || role === "super_admin";
 
-  if (!isPatientOwner && !isStaffOwner && !isAdmin) throw new NotFoundError("Chat not found");
+  if (!isPatientOwner && !isStaffOwner) throw new NotFoundError("Chat not found");
   return { chat, role };
 }
 
