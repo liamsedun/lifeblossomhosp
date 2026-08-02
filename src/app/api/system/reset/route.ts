@@ -40,6 +40,14 @@ const DELETE_TABLES = [
   "staff",
 ];
 
+// Tables without an org_id column — wiped via their parent's org-scoped ids.
+const CHILD_TABLES: Record<string, { parent: string; column: string }> = {
+  internal_message_recipients: { parent: "internal_messages", column: "message_id" },
+  prescription_items: { parent: "prescriptions", column: "prescription_id" },
+  invoice_items: { parent: "invoices", column: "invoice_id" },
+  push_subscriptions: { parent: "users", column: "user_id" },
+};
+
 export const POST = withAuth(async (req, supabase, authUserId) => {
   const { data: caller } = await supabase.from("users").select("role").eq("id", authUserId).single();
   if (!caller || caller.role !== "super_admin") {
@@ -54,6 +62,22 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
 
   // 1. Wipe all org-scoped entered data (children before parents)
   for (const table of DELETE_TABLES) {
+    const child = CHILD_TABLES[table];
+    if (child) {
+      const { data: parents } = await svc.from(child.parent).select("id").eq("org_id", orgId);
+      const parentIds = (parents || []).map((p: any) => p.id);
+      let childDeleted = 0;
+      for (let i = 0; i < parentIds.length; i += 100) {
+        const { data, error } = await svc.from(table).delete().in(child.column, parentIds.slice(i, i + 100)).select("id");
+        if (error) {
+          console.error(`[system/reset] delete ${table} failed:`, error.message);
+          return err(`Failed to clear ${table}: ${error.message}`, 500);
+        }
+        childDeleted += data?.length || 0;
+      }
+      deleted[table] = childDeleted;
+      continue;
+    }
     const { data, error } = await svc.from(table).delete().eq("org_id", orgId).select("id");
     if (error) {
       console.error(`[system/reset] delete ${table} failed:`, error.message);

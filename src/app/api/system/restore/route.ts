@@ -90,6 +90,14 @@ const REMAP: Record<string, Record<string, string>> = {
   duty_roster: { staff_id: "staff", user_id: "users", created_by: "users" },
 };
 
+// Tables without an org_id column — wiped via their parent's org-scoped ids.
+const CHILD_TABLES: Record<string, { parent: string; column: string }> = {
+  internal_message_recipients: { parent: "internal_messages", column: "message_id" },
+  prescription_items: { parent: "prescriptions", column: "prescription_id" },
+  invoice_items: { parent: "invoices", column: "invoice_id" },
+  push_subscriptions: { parent: "users", column: "user_id" },
+};
+
 function pick(row: any, cols: string[]): Record<string, any> {
   const out: Record<string, any> = {};
   for (const c of cols) {
@@ -128,6 +136,19 @@ export const POST = withAuth(async (req, supabase, authUserId) => {
     if (table === "users") {
       const { error } = await svc.from("users").delete().eq("org_id", orgId).neq("id", authUserId);
       if (error) return err(`Failed to wipe ${table}: ${error.message}`, 500);
+      continue;
+    }
+    const child = CHILD_TABLES[table];
+    if (child) {
+      const { data: parents } = await svc.from(child.parent).select("id").eq("org_id", orgId);
+      const parentIds = (parents || []).map((p: any) => p.id);
+      for (let i = 0; i < parentIds.length; i += 100) {
+        const { data: wipedRows, error } = await svc.from(table).delete().in(child.column, parentIds.slice(i, i + 100)).select("id");
+        if (error && error.code !== "42P01" && !error.message.includes("does not exist")) {
+          return err(`Failed to wipe ${table}: ${error.message}`, 500);
+        }
+        wipeCounts[table] = (wipeCounts[table] || 0) + (wipedRows || []).length;
+      }
       continue;
     }
     const { data: wipedRows, error } = await svc.from(table).delete().eq("org_id", orgId).select("id");
