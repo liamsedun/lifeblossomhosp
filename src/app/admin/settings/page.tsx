@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Stethoscope, PenLine, Trash2, Plus, KeyRound, Shield, ShieldOff, Landmark, Power, AlertTriangle, Loader2, Hash, CheckCircle2, RotateCcw, Database, Download, Upload } from "lucide-react";
+import { Stethoscope, PenLine, Trash2, Plus, KeyRound, Shield, ShieldOff, Landmark, Power, AlertTriangle, Loader2, Hash, CheckCircle2, RotateCcw, Database, Download, Upload, ChevronDown } from "lucide-react";
 import { useRoleGuard } from "@/hooks/use-role-guard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,7 @@ import {
   DialogClose,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 
 interface Doctor {
   id: string;
@@ -55,6 +55,7 @@ export default function SettingsPage() {
   const [resetting, setResetting] = useState(false);
   const [resetMsg, setResetMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [activeTab, setActiveTab] = useState("doctors");
 
   const [backupLoading, setBackupLoading] = useState(false);
   const [backupMsg, setBackupMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -197,16 +198,24 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="doctors">
-        <TabsList>
-          <TabsTrigger value="doctors">Doctors</TabsTrigger>
-          <TabsTrigger value="users">Users</TabsTrigger>
-          <TabsTrigger value="bank-accounts">Bank Accounts</TabsTrigger>
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="prefixes">ID Prefixes</TabsTrigger>
-          {isSuperAdmin && <TabsTrigger value="backups">Backups</TabsTrigger>}
-          {isSuperAdmin && <TabsTrigger value="system-reset">System Reset</TabsTrigger>}
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <div className="relative mb-4 w-full sm:max-w-xs">
+          <select
+            value={activeTab}
+            onChange={(e) => setActiveTab(e.target.value)}
+            className="h-11 w-full appearance-none rounded-lg border border-border bg-card px-3 pr-10 text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+            aria-label="Settings section"
+          >
+            <option value="doctors">Doctors</option>
+            <option value="users">Users</option>
+            <option value="bank-accounts">Bank Accounts</option>
+            <option value="general">General</option>
+            <option value="prefixes">ID Prefixes</option>
+            {isSuperAdmin && <option value="backups">Backups</option>}
+            {isSuperAdmin && <option value="system-reset">System Reset</option>}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 size-4 text-text-secondary" />
+        </div>
 
         <TabsContent value="doctors">
           <Card>
