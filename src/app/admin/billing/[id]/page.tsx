@@ -281,9 +281,9 @@ function InvoiceDocument({ invoice, org }: { invoice: Invoice; org: OrgProfile }
       </div>
 
       {/* Line items */}
-      <table className="w-full text-sm mb-4">
+      <table className="w-full text-sm mb-4 print:text-[11px]">
         <thead>
-          <tr className="border-y border-white/[0.08] print:border-gray-400 text-left text-[11px] uppercase tracking-wider text-white/40 print:text-gray-600">
+          <tr className="border-y border-white/[0.08] print:border-gray-400 text-left text-[11px] print:text-[9px] uppercase tracking-wider text-white/40 print:text-gray-600">
             <th className="py-2 font-semibold">Item / Description</th>
             <th className="py-2 font-semibold text-center">Qty</th>
             <th className="py-2 font-semibold text-right">Unit Price</th>
@@ -295,17 +295,17 @@ function InvoiceDocument({ invoice, org }: { invoice: Invoice; org: OrgProfile }
         <tbody>
           {invoice.items?.map((item) => (
             <tr key={item.id} className="border-b border-white/[0.04] print:border-gray-300">
-              <td className="py-2.5 text-sm font-medium text-white print:text-black">{item.description}</td>
-              <td className="py-2.5 text-sm text-center text-white/60 print:text-gray-700">{item.quantity}</td>
-              <td className="py-2.5 text-sm text-right text-white/60 print:text-gray-700">₦{item.unit_price.toLocaleString()}</td>
-              <td className="py-2.5 text-sm text-right text-white/60 print:text-gray-700">{item.vat_percent || 0}%</td>
-              <td className="py-2.5 text-sm text-right text-white/60 print:text-gray-700">₦{Number(item.vat_amount || 0).toLocaleString()}</td>
-              <td className="py-2.5 text-sm text-right font-semibold text-white print:text-black">₦{item.total_price.toLocaleString()}</td>
+              <td className="py-2.5 text-sm print:text-[11px] font-medium text-white print:text-black">{item.description}</td>
+              <td className="py-2.5 text-sm print:text-[11px] text-center text-white/60 print:text-gray-700">{item.quantity}</td>
+              <td className="py-2.5 text-sm print:text-[11px] text-right text-white/60 print:text-gray-700">₦{item.unit_price.toLocaleString()}</td>
+              <td className="py-2.5 text-sm print:text-[11px] text-right text-white/60 print:text-gray-700">{item.vat_percent || 0}%</td>
+              <td className="py-2.5 text-sm print:text-[11px] text-right text-white/60 print:text-gray-700">₦{Number(item.vat_amount || 0).toLocaleString()}</td>
+              <td className="py-2.5 text-sm print:text-[11px] text-right font-semibold text-white print:text-black">₦{item.total_price.toLocaleString()}</td>
             </tr>
           ))}
           {(!invoice.items || invoice.items.length === 0) && (
             <tr>
-              <td colSpan={6} className="py-3 text-sm text-white/40 print:text-gray-500">No line items.</td>
+              <td colSpan={6} className="py-3 text-sm print:text-[11px] text-white/40 print:text-gray-500">No line items.</td>
             </tr>
           )}
         </tbody>
@@ -313,7 +313,7 @@ function InvoiceDocument({ invoice, org }: { invoice: Invoice; org: OrgProfile }
 
       {/* Totals */}
       <div className="flex justify-end">
-        <div className="w-full sm:w-72 space-y-1.5 text-sm">
+        <div className="w-full sm:w-72 space-y-1.5 text-sm print:text-[11px]">
           <div className="flex justify-between">
             <span className="text-white/50 print:text-gray-600">Sub Total</span>
             <span className="text-white print:text-black">₦{invoice.subtotal.toLocaleString()}</span>
@@ -328,7 +328,7 @@ function InvoiceDocument({ invoice, org }: { invoice: Invoice; org: OrgProfile }
             <span className="text-white/50 print:text-gray-600">VAT Amount</span>
             <span className="text-white print:text-black">₦{invoice.tax_amount.toLocaleString()}</span>
           </div>
-          <div className="flex justify-between font-bold text-base border-t border-white/[0.08] print:border-gray-400 pt-1.5">
+          <div className="flex justify-between font-bold text-base print:text-[11px] border-t border-white/[0.08] print:border-gray-400 pt-1.5">
             <span className="text-white print:text-black">Total Due</span>
             <span className="text-white print:text-black">₦{invoice.total_amount.toLocaleString()}</span>
           </div>
