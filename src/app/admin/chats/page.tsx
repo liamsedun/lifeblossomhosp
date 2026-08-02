@@ -24,7 +24,7 @@ export default function AdminChatsPage() {
   }, []);
 
   return (
-    <div className="flex items-stretch gap-4 h-[calc(100dvh-120px)]">
+    <div className="flex items-stretch gap-4 h-[calc(100dvh-170px)] lg:h-[calc(100dvh-120px)]">
       {/* Conversation list */}
       <Card className={`w-full lg:w-80 shrink-0 overflow-hidden border-white/[0.06] bg-[#0d1322]/60 ${activeChatId ? "hidden lg:flex" : "flex"}`}>
         <div className="w-full">

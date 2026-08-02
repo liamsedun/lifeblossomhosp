@@ -25,7 +25,7 @@ export default function AdminChatDetailPage() {
   }, []);
 
   return (
-    <div className="flex items-stretch gap-4 h-[calc(100dvh-120px)]">
+    <div className="flex items-stretch gap-4 h-[calc(100dvh-170px)] lg:h-[calc(100dvh-120px)]">
       <Card className="hidden lg:flex w-80 shrink-0 overflow-hidden border-white/[0.06] bg-[#0d1322]/60">
         <div className="w-full">
           <AdminChatList activeChatId={params.id} onSelect={(id) => router.push(`/admin/chats/${id}`)} data={data} load={load} />

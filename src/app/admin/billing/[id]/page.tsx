@@ -221,11 +221,11 @@ function InvoiceDocument({ invoice, org }: { invoice: Invoice; org: OrgProfile }
           )}
           <div>
             <h1 className="text-lg font-bold text-white print:text-black">{org.name}</h1>
-            {org.address && <p className="text-xs text-white/60 print:text-gray-600">{org.address}</p>}
-            <p className="text-xs text-white/60 print:text-gray-600">
+            {org.address && <p className="text-xs text-white/60 print:text-gray-600 print:text-[10px]">{org.address}</p>}
+            <p className="text-xs text-white/60 print:text-gray-600 print:text-[10px]">
               {[org.phone && `Tel: ${org.phone}`, org.email && org.email].filter(Boolean).join("  •  ")}
             </p>
-            {org.website && <p className="text-xs text-white/60 print:text-gray-600">{org.website}</p>}
+            {org.website && <p className="text-xs text-white/60 print:text-gray-600 print:text-[10px]">{org.website}</p>}
           </div>
         </div>
         <div className="text-right">

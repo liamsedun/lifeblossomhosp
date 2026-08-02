@@ -43,6 +43,7 @@ import { getNavForRole, CLINICAL_ROLES, FULL_ACCESS_ROLES, ADMIN_ROLES } from "@
 import type { UserRole } from "@/lib/api-types";
 import IdleLogout from "@/components/ui/IdleLogout";
 import { NotificationBell } from "@/components/pwa/pwa-wrapper";
+import MobileTabBar from "@/components/pwa/mobile-tab-bar";
 
 interface NotificationItem {
   id: string;
@@ -313,8 +314,11 @@ export default function AdminLayout({
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6 pb-20 lg:pb-6">{children}</main>
       </div>
+
+      {/* Mobile / tablet bottom tab bar (icons only, PWA) */}
+      <MobileTabBar />
     </div>
   );
 }
