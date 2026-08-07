@@ -4,6 +4,12 @@
 This version has breaking changes â€” APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+## What this project is
+
+Life Blossom â€” a standalone single-hospital management web app (Next.js, one Supabase project, one Netlify site). It is NOT the SkyCare SaaS.
+
+**IMPORTANT: Life Blossom is an INDEPENDENT project.** SkyCare (`C:\Users\Admin\Downloads\skycare--saas-hosp`) is a SEPARATE multi-tenant SaaS with its own git repo (`liamsedun/skycare`), its own Supabase project (`pvakwxeusbxesdealuuc`), its own env files and its own deployments. The two projects must NEVER be mixed: same-named files exist in both, but they are different codebases with different databases and deployments. All work in this workspace is Life Blossom-only; never read from, write to, or reference the SkyCare folder as part of Life Blossom work.
+
 ## Work State (Jul 2026)
 
 ### Completed
@@ -26,11 +32,11 @@ This version has breaking changes â€” APIs, conventions, and file structure may 
 
 ### Layered audit model (who logs what)
 - **DB triggers (safety net)**: `public.log_audit()` AFTER INSERT/UPDATE/DELETE on medical_records, dependants (patients rows with primary_account_id), ppointments, invoices, payments, patients. Fires ONLY when `auth.uid()` is set (RLS-scoped writes). Captures role, org, and a JSONB column diff in changes. Skipped for service-role writes to avoid orphaned rows (`auth.uid()` is NULL).
-- **API layer (authoritative)**: `src/lib/audit.ts` `logAudit()` / `logView()` / `flagSecurityEvent()` / `logAuth()` — writes via the service client with full user/IP/user-agent/org context. Used for all service-client CRUD (dependants, appointments, invoices, payments/declare, payments/cancel, patients) and ALL VIEW (read) tracking (medical-records list, invoice detail, appointment detail, dependant view, own patient profile).
+- **API layer (authoritative)**: `src/lib/audit.ts` `logAudit()` / `logView()` / `flagSecurityEvent()` / `logAuth()` ï¿½ writes via the service client with full user/IP/user-agent/org context. Used for all service-client CRUD (dependants, appointments, invoices, payments/declare, payments/cancel, patients) and ALL VIEW (read) tracking (medical-records list, invoice detail, appointment detail, dependant view, own patient profile).
 - **Never double-log**: a write is logged by the trigger XOR the API layer, determined by which client wrote it (RLS client ? trigger; service client ? API).
 
 ### audit_logs / security_events
-- udit_logs: append-only. RLS = SELECT-only for admin/super_admin (policy `audit_admin_read` replaces the old `audit_admin_all` which allowed admin UPDATE/DELETE — tamper risk). Columns: org_id, user_id, role, action (enum), entity_type, entity_id, changes JSONB, description, ip_address, user_agent.
+- udit_logs: append-only. RLS = SELECT-only for admin/super_admin (policy `audit_admin_read` replaces the old `audit_admin_all` which allowed admin UPDATE/DELETE ï¿½ tamper risk). Columns: org_id, user_id, role, action (enum), entity_type, entity_id, changes JSONB, description, ip_address, user_agent.
 - security_events: anomaly store. RLS = SELECT for admin/super_admin on own org OR org_id IS NULL (global failed-login events carry no org). Writes only via service client / definer triggers.
 - Anomaly rules: >8 VIEWs of same entity by same user in 5 min ? apid_view (high); >=5 failed logins for identifier+IP in 15 min ? login locked (HTTP 429) + ailed_login events.
 - Deployment: run `scripts/migration-013-security-audit.sql` in the Supabase SQL editor (idempotent).
@@ -42,6 +48,6 @@ This version has breaking changes â€” APIs, conventions, and file structure may 
 ### Deferred: field-level encryption (documented design)
 Sensitive clinical fields (medical_records.diagnosis/notes, patients.blood_group/genotype/allergies) are currently protected by RLS (patient reads own record only; staff read org-wide) + audit logging. Application-layer AES-256-GCM was deliberately NOT implemented now. When adopted:
 1. Add env `FIELD_ENCRYPTION_KEY` (64-hex random; rotate via key-id prefix `v1:` on ciphertext).
-2. Encrypt in the API write layer (service client) just before insert; decrypt in read paths (medical-records GET, patients GET) — all reads already flow through API routes, so no client-side change.
+2. Encrypt in the API write layer (service client) just before insert; decrypt in read paths (medical-records GET, patients GET) ï¿½ all reads already flow through API routes, so no client-side change.
 3. Migration adds `*_enc` columns; backfill script decrypts during cutover; plaintext columns dropped.
 4. Trade-offs accepted: no SQL LIKE search on encrypted fields; triggers log ciphertext diffs (add decryption in log_audit via key lookup if plaintext diffs needed).
